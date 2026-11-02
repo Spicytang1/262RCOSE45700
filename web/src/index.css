@@ -1,14 +1,77 @@
-* {
-  box-sizing: border-box;
+@import "tailwindcss";
+
+/*
+ * 카카오 스타일 디자인 토큰
+ * - 브랜드 옐로 #FEE500, 버튼 라운드 12px: 카카오 로그인 디자인 가이드 기준
+ *   (https://developers.kakao.com/docs/latest/ko/kakaologin/design-guide)
+ * - 텍스트·회색 계열: 카카오 T 앱 톤을 참고
+ */
+@theme {
+  --color-kakao: #fee500;
+  --color-kakao-press: #f0d800;
+  --color-kakao-soft: #fff9c4;
+
+  --color-ink: #191919;
+  --color-ink-sub: #4a4f58;
+  --color-ink-muted: #7e8593;
+  --color-line: #e8eaed;
+  --color-surface: #f5f6f8;
+
+  --color-danger: #e53935;
+  --color-warning: #e08a00;
+
+  --font-sans: "Kakao Small Sans", "Pretendard Variable", Pretendard,
+    -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
+    "Noto Sans KR", sans-serif;
+
+  --radius-button: 12px;
+  --radius-card: 16px;
+
+  --animate-pulse-ring: pulse-ring 2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+  --animate-blink: blink 1.2s ease-in-out infinite;
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+    100% {
+      transform: scale(1.45);
+      opacity: 0;
+    }
+  }
+
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  margin: 0;
-  background: #f4f5f7;
-  color: #1f2937;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+  word-break: keep-all;
 }
 
-button {
-  font-family: inherit;
+/* 넓은 화면(태블릿·PC)에서는 앱 영역(430px) 경계가 보이도록 배경과 테두리를 준다 */
+@media (min-width: 431px) {
+  body {
+    background: #e9ebee;
+  }
+
+  .app-frame {
+    box-shadow:
+      0 0 0 1px var(--color-line),
+      0 8px 40px rgba(25, 25, 25, 0.06);
+  }
 }
