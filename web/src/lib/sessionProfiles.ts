@@ -6,6 +6,7 @@ type ProfileOverride = { name?: string; photoUrl?: string | null; pinSalt?: stri
 type Profiles = Record<string, ProfileOverride>;
 const STORAGE_KEY = "p3-supervisor-profiles-session-v1";
 
+// TODO(backend): 현재 탭 전용 프로필 덮어쓰기다. 실제 계정 설정으로 전환할 때 서버의 현재 감독관 프로필을 조회한다.
 function readProfiles(): Profiles {
   try {
     const parsed: unknown = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "{}");
@@ -45,6 +46,8 @@ export function resolveSupervisor(supervisor: Supervisor, overrides: Profiles): 
 }
 
 export function applySessionProfile(id: SupervisorId, name: string, photoUrl: string | null) {
+  // TODO(backend): 이름·사진 변경을 서버에 저장하고 확정된 프로필을 반영한다. 사진은 현재 data URL이며 업로드 후 URL로 교체한다.
+  // 이 함수가 비동기가 되면 Settings의 적용 처리도 응답을 기다리고 실패 시 입력을 유지하도록 변경한다.
   const trimmed = name.trim();
   if (!trimmed || trimmed.length > 40) throw new Error("이름은 1~40자로 입력해 주세요.");
   updateProfile(id, { name: trimmed, photoUrl });
@@ -57,6 +60,7 @@ async function hashPin(salt: string, pin: string) {
 
 /** 실제 계정 보안이 아닌, 현재 탭에서만 사용하는 시연용 검증이다. */
 export async function authenticateSupervisor(id: SupervisorId, pin: string, signal?: AbortSignal): Promise<boolean> {
+  // TODO(backend): 탭에 저장된 PIN 해시 검증을 제거하고 서버 검증으로 통일한다. boolean만이 아닌 세션·현재 사용자 응답을 App과 연결한다.
   const directory = getSupervisorDirectory();
   const supervisors = await listSupervisors(signal);
   if (signal?.aborted || !supervisors.some(supervisor => supervisor.id === id)) return false;
@@ -68,6 +72,8 @@ export async function authenticateSupervisor(id: SupervisorId, pin: string, sign
 }
 
 export async function changeSessionPassword(id: SupervisorId, current: string, next: string) {
+  // TODO(backend): 현재 PIN·새 PIN을 서버로 보내 재검증·변경한다. 클라이언트 해시를 실제 비밀번호 저장 방식으로 사용하지 않는다.
+  // 서버는 로그인 세션의 사용자와 변경 대상을 대조하고 변경 성공 여부를 반환해야 한다.
   if (getSupervisorDirectory().mode !== "demo") throw new Error("실제 비밀번호 변경은 계정 관리 기능과 연결해야 해요.");
   if (!/^\d{4}$/.test(current) || !/^\d{4}$/.test(next)) throw new Error("비밀번호는 숫자 4자리로 입력해 주세요.");
   if (!await authenticateSupervisor(id, current)) throw new Error("현재 비밀번호가 맞지 않아요.");

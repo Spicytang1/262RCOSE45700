@@ -14,6 +14,8 @@ export default function useRecordingData(supervisorId: SupervisorId | null) {
     if (signal?.aborted) return;
     setData(previous => ({ ...previous, loading: true, error: false }));
     try {
+      // TODO(backend): 로컬 전체 조회를 서버 조회로 교체할 때 취소 신호·검색·필터·정렬·페이지 조건도 전달한다.
+      // 현재는 모든 원본을 받은 뒤 화면에서 검색·30건 표시한다. 서버 페이지 방식으로 바꾸면 목록·건수·이전/다음 탐색도 함께 조정한다.
       const [recordings, sessions, reviews] = await Promise.all([getRecordings(supervisorId), getSessions(supervisorId), getReviews()]);
       const byId = new Map(reviews.map(review => [review.id, review]));
       if (!signal?.aborted && request === requestId.current) setData(previous => {

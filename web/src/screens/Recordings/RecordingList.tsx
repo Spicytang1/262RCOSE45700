@@ -1,5 +1,5 @@
 import { ChevronRight, Mic, Search } from "lucide-react";
-import { dateText, focusStyle, recordingSummary, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
+import { dateText, DEMO_ADDRESS, focusStyle, recordingSummary, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
 import { formatTime } from "@/lib/formatTime";
 import type { DriveSession, RecordingEntry } from "@/types/report";
 import { RecordingFrame, RecordingHeader } from "./RecordingChrome";
@@ -42,7 +42,7 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
       </div>
       <div>
         <label htmlFor="recording-search" className="mb-2 block text-[13px] font-bold">녹음 검색</label>
-        <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="제목이나 메모로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
+        <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="정리 항목·주소·제목·메모로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label htmlFor="recording-status" className="mb-2 block text-[13px] font-bold">검토 상태</label><select id="recording-status" value={options.status} onChange={event => change({ status: event.target.value as ListOptions['status'] })} className={`${control} w-full`}><option value="all">전체 상태</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
@@ -58,8 +58,12 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
           const session = record.sessionId ? sessionById.get(record.sessionId) : undefined;
           const status = record.review?.status ?? "new";
           return <button key={record.id} type="button" onClick={() => onOpen(record.id)} className={`relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left hover:border-ink-sub active:bg-kakao-soft ${focusStyle}`}>
-            <span className={`w-fit rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-[#e8f5ed] text-[#17633b]" : status === "flagged" ? "bg-[#fff0e5] text-[#944000]" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
-            <span className="text-[13px] font-medium text-ink-sub [overflow-wrap:anywhere]">{recordingTitle(record)}</span>
+            <span className="flex w-full min-w-0 items-center gap-3">
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-[#e8f5ed] text-[#17633b]" : status === "flagged" ? "bg-[#fff0e5] text-[#944000]" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
+              {/* TODO(backend): 저장된 녹음 위치의 좌표를 주소로 변환한 서버 응답으로 교체한다. 현재는 위치 유무와 관계없는 표시용 예시이며 원본에 저장하지 않는다. */}
+              <span className="shrink-0 whitespace-nowrap text-[13px] font-bold text-ink">{DEMO_ADDRESS} <span className="text-[10px] font-normal text-ink-sub">(임시 주소)</span></span>
+            </span>
+            <span title={recordingTitle(record)} className="w-full truncate text-[13px] font-medium text-ink-sub">{recordingTitle(record)}</span>
             <span className="text-[18px] leading-[1.7] font-extrabold [overflow-wrap:anywhere]">{recordingSummary(record)}</span>
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-sub"><span>{dateText(record.recordedAt)} {timeText(record.recordedAt)}</span><span className="inline-flex items-center gap-1 tabular-nums"><Mic className="size-3.5" aria-hidden="true" />{formatTime(record.durationSec)}</span><span>{session ? `${session.number}회차` : "회차 미지정"}</span></span>
             <ChevronRight className="absolute top-1/2 right-3 size-5 -translate-y-1/2 text-ink-sub" aria-hidden="true" />

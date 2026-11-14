@@ -38,6 +38,8 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         <p className="text-[12px] font-bold text-kakao">{session ? `${session.number}회차 · ${session.endedAt ? "운행 종료" : "운행 중"}` : "이전 녹음 · 회차 미지정"}</p>
         <h2 className="mt-2 text-[20px] font-extrabold break-words">{recordingTitle({ ...recording, review: draft })}</h2>
         <p className="mt-3 text-[13px] text-white/85">{dateText(recording.recordedAt)} {timeText(recording.recordedAt)}</p>
+        {/* TODO(backend): 녹음 좌표를 주소로 변환한 응답으로 교체한다. XX동 XX로는 표시용 임시 주소이며 원본에 저장하지 않는다. */}
+        <p title="임시 주소예요. 실제 위치와 연결되지 않았어요." aria-label="XX동 XX로 (임시 주소)" className="mt-2 text-[20px] font-extrabold break-words">XX동 XX로</p>
         <p className="mt-1 text-[13px] text-white/85 [overflow-wrap:anywhere]">{supervisorName} · 녹음 {formatTime(recording.durationSec)}</p>
       </section>
       <div className="rounded-card border border-line bg-white px-4 py-3">
@@ -54,6 +56,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         <RecordingPanel title="녹음 제목"><label htmlFor="recording-title" className="mb-2 block text-[13px] text-ink-sub">목록에 표시할 제목</label><input id="recording-title" name="recording-title" value={draft.title} onChange={event => { const title = event.target.value; change(current => ({ ...current, title })); }} maxLength={120} placeholder={recordingTitle({ ...recording, review: undefined })} className={control} /></RecordingPanel>
       </fieldset>
       <RecordingPanel title="원본 음성"><RecordingPlayer audio={recording.audio} durationSec={recording.durationSec} /></RecordingPanel>
+      {/* TODO(backend): DEMO_TRANSCRIPT 대신 녹음별 전사 응답을 표시하고 처리 중·실패·미연결 상태를 구분한다. */}
       <RecordingPanel title="전사"><span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">시연용 예시</span><p className="text-[15px]">{DEMO_TRANSCRIPT}</p><p className="mt-3 text-[12px] text-ink-sub">모든 녹음에 동일한 예시를 표시해요. 실제 음성 인식 결과는 아니에요.</p></RecordingPanel>
       <RecordingPanel title="정리 항목">
         <p className="mb-4 text-[13px] text-ink-sub">시연용 예시로 채워 두었어요. 항목을 바꾸면 자동 저장돼요. 실제 음성·차량 데이터 분석 결과는 아니에요.</p>
@@ -74,6 +77,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         })}</fieldset>
       </RecordingPanel>
       <RecordingLocationMap location={recording.location} />
+      {/* TODO(backend): 녹음 시각·회차와 연결된 차량 로그(이전 동작·속도·차선·저크 등)를 서버에서 조회해 표시한다. 기기 위치를 차량 GPS로 대체 사용하지 않는다. */}
       <RecordingPanel title="차량 데이터"><p className="text-[14px] text-ink-sub">이전 동작은 차량에서 수집했다고 가정한 예시예요. 실제 차량 로그는 아직 연결되지 않았어요. 위 지도는 차량 위치가 아니라 녹음 시작 시 요청한 기기 위치예요.</p></RecordingPanel>
       <RecordingPanel title="메모"><label htmlFor="recording-note" className="mb-2 block text-[13px] text-ink-sub">사건 맥락이나 확인할 내용을 남겨 주세요.</label><textarea id="recording-note" name="recording-note" value={draft.note} onChange={event => { const note = event.target.value; change(current => ({ ...current, note })); }} rows={4} maxLength={5000} className={`${control} resize-y`} /></RecordingPanel>
       <p className="px-1 py-2 text-[12px] text-ink-sub">수정 내용은 이 브라우저에 자동 저장돼요. 원본 음성은 바꾸지 않아요.</p>

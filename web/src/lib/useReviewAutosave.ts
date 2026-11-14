@@ -33,6 +33,7 @@ export default function useReviewAutosave(recording: RecordingEntry, onSaved: ()
       while (JSON.stringify(latest.current) !== persisted.current) {
         const snapshot = latest.current;
         if (mounted.current) setPhase("saving");
+        // TODO(backend): 서버 저장 완료 응답 이후에만 persisted를 갱신한다. 통신 실패·동시 수정 충돌에도 입력과 이탈 방지를 유지한다.
         try { await saveReview(snapshot, supervisorId); }
         catch { if (mounted.current) setPhase("error"); return false; }
         persisted.current = JSON.stringify(snapshot);

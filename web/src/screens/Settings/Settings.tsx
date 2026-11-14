@@ -48,6 +48,7 @@ export default function Settings({ profile, onBack }: { profile: Supervisor; onB
   }
 
   function applyProfile(event: React.FormEvent) {
+    // TODO(backend): applySessionProfile을 서버 저장으로 바꾸면 비동기 처리·중복 제출 방지·성공 응답 프로필 반영을 연결한다.
     event.preventDefault();
     if (locked.current) return;
     setProfileError(""); setProfileNotice("");
@@ -57,6 +58,7 @@ export default function Settings({ profile, onBack }: { profile: Supervisor; onB
   }
 
   async function changePassword(event: React.FormEvent) {
+    // TODO(backend): 서버 PIN 변경 결과로 성공·실패를 표시하고 현재 탭 한정이라는 안내를 실제 계정 동작에 맞게 변경한다.
     event.preventDefault();
     if (locked.current) return;
     setPasswordError(""); setPasswordNotice("");

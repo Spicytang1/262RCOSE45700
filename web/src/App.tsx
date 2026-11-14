@@ -4,7 +4,7 @@ import Standby from "@/screens/Standby/Standby";
 import Record from "@/screens/Record/Record";
 import Review from "@/screens/Review/Review";
 import Button from "@/components/Button";
-import { endSession, saveRecording, startSession } from "@/lib/recordingStore";
+import { endSession, getSessions, saveRecording, startSession } from "@/lib/recordingStore";
 import useRecordingData from "@/lib/useRecordingData";
 import useRecordingRoute, { navigateRecordings, navigateStandby } from "@/lib/useRecordingRoute";
 import RecordingList from "@/screens/Recordings/RecordingList";
@@ -22,6 +22,7 @@ type Screen = "login" | "standby" | "record" | "addRecord" | "review";
 /** 로그인 → 대기 → 녹음 → 보관 → 대기. 기존 검토 흐름은 보존한다. */
 export default function App() {
   const [screen, setScreen] = useState<Screen>("login");
+  // TODO(backend): 선택한 감독관을 메모리에만 유지한다. 서버 로그인 세션과 현재 사용자 조회를 연결하고 만료 시 로그인으로 전환한다.
   const [supervisor, setSupervisor] = useState<Supervisor | null>(null);
   const profiles = useSessionProfiles();
   const profile = supervisor ? resolveSupervisor(supervisor, profiles) : null;
@@ -95,10 +96,39 @@ export default function App() {
   }
 
   function logoutSupervisor() {
+    // TODO(backend): 화면 상태 초기화 외에 서버 로그아웃으로 세션도 무효화한다. 감독관 전환 시에도 같은 처리가 필요하다.
     clearDrivePermissions();
     clearClips(); setSupervisor(null); setNotice(""); setActionError(""); setScreen("login");
     setListOptions(INITIAL_LIST_OPTIONS); navigateStandby();
   }
+
+  async function loginSupervisor(selected: Supervisor, signal: AbortSignal) {
+    // 종료 순간에는 브라우저가 비동기 보관을 중단할 수 있어, 로그인 완료 전에 남은 이전 운행도 종료한다.
+    // TODO(backend): 서버 로그인 시 이전 운행 정리와 세션 소유권을 확인한다. 실제 이탈 시각 확정은 서버 생존 신호·만료 정책이 필요하다.
+    const sessions = await getSessions(selected.id);
+    for (const session of sessions) {
+      if (signal.aborted) return;
+      if (!session.endedAt) await endSession(session.id, selected.id);
+    }
+    if (signal.aborted) return;
+    clearDrivePermissions();
+    setSupervisor(selected); setNotice(""); setActionError(""); setScreen("standby");
+  }
+
+  // 해시 주소를 사용하는 목록·상세·설정 이동이나 탭 전환은 종료가 아니다.
+  // beforeunload는 사용자가 이동을 취소할 수도 있으므로 실제 이탈인 pagehide에서만 종료를 시도한다.
+  // 매 렌더마다 최신 회차·감독관 변경 처리로 교체하고, effect 정리 자체에서는 운행을 종료하지 않는다.
+  useEffect(() => {
+    if (!activeSession || supervisorId === null) return;
+    const onPageHide = () => { void endSession(activeSession.id, supervisorId).catch(() => { /* 다음 로그인에서 종료를 재시도한다. */ }); };
+    const onPageShow = (event: PageTransitionEvent) => { if (event.persisted) logoutSupervisor(); };
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  });
 
   function changeSupervisor() {
     if (actionLock.current) return;
@@ -131,6 +161,8 @@ export default function App() {
   }
 
   async function commitRecording(recording: StoredRecording) {
+    // TODO(backend): 실제 업로드 성공 후에만 보관 완료를 표시한다. 현재 saveRecording은 이 브라우저 안에만 저장한다.
+    // 브라우저 마이크·위치는 실제 측정값이며 유지하고, 전사·구조화 요청은 서버에 보관된 녹음 ID와 연결한다.
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
@@ -156,6 +188,7 @@ export default function App() {
   }
 
   function handleAddFinish(blob: Blob, durationSec: number) {
+    // TODO(backend): 기본 흐름에서 미사용인 추가 녹음이다. 재사용 시 Blob을 서버에 업로드하고 원래 기록 ID와 연결한다.
     // 추가 녹음을 재생용 URL 배열에 덧붙이고 기록 확인 화면으로 전환
     console.log("추가녹음 형식:", blob.type, "크기:", blob.size);
     setAudioClips((prev) => [
@@ -166,7 +199,7 @@ export default function App() {
   }
 
   function handleSave() {
-    //현재 녹음본 저장 후 대기 화면으로 돌아가기
+    // TODO(backend): 기본 흐름에서 미사용인 Review의 저장 버튼이다. 현재 저장 없이 이동만 하므로 서버 저장 성공 후 이동하도록 연결한다.
     setScreen("standby");
   }
 
@@ -188,7 +221,7 @@ export default function App() {
   }
 
   if (screen === "login" || supervisorId === null || !profile) {
-    return <Login onLogin={(selected) => { setSupervisor(selected); setNotice(""); setActionError(""); setScreen("standby"); }} />;
+    return <Login onLogin={loginSupervisor} />;
   }
 
   if (screen === "record") {
