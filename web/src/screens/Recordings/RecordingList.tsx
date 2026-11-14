@@ -1,0 +1,64 @@
+import { ChevronRight, Mic, Search } from "lucide-react";
+import { dateText, focusStyle, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
+import { formatTime } from "@/lib/formatTime";
+import type { DriveSession, RecordingEntry, SupervisorId } from "@/types/report";
+import { RecordingFrame, RecordingHeader } from "./RecordingChrome";
+import { filteredRecordings, INITIAL_LIST_OPTIONS, type ListOptions } from "@/lib/recordingList";
+
+type Props = {
+  supervisorId: SupervisorId;
+  recordings: RecordingEntry[];
+  sessions: DriveSession[];
+  currentSession: DriveSession | undefined;
+  options: ListOptions;
+  onOptions: (options: ListOptions) => void;
+  onOpen: (id: string) => void;
+  onBack: () => void;
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+};
+
+export default function RecordingList({ supervisorId, recordings, sessions, currentSession, options, onOptions, onOpen, onBack, loading, error, onRetry }: Props) {
+  const list = filteredRecordings(recordings, currentSession, options);
+  const shown = list.slice(0, options.limit);
+  const groups = new Map<string, RecordingEntry[]>();
+  shown.forEach(record => { const day = dateText(record.recordedAt); const group = groups.get(day); if (group) group.push(record); else groups.set(day, [record]); });
+  const sessionById = new Map(sessions.map(session => [session.id, session]));
+  const change = (patch: Partial<ListOptions>) => onOptions({ ...options, ...patch, limit: 30 });
+  const control = `min-h-11 rounded-button border border-line bg-white px-3 text-[14px] ${focusStyle}`;
+
+  return <RecordingFrame>
+    <RecordingHeader title="녹음 목록" backLabel="대기" onBack={onBack} />
+    <div className="flex flex-col gap-4 px-5 pt-5">
+      <p className="text-[14px] text-ink-sub">감독관 {supervisorId}의 녹음이에요. 정차 후 확인해 주세요.</p>
+      <div role="group" aria-label="녹음 범위" className="grid grid-cols-2 gap-1 rounded-button bg-line p-1">
+        {([['all', '전체 녹음'], ['session', '이번 회차']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={options.scope === value} onClick={() => change({ scope: value })} className={`min-h-11 rounded-[9px] text-[14px] font-bold ${focusStyle} ${options.scope === value ? "bg-white text-ink shadow-sm" : "text-ink-sub"}`}>{label}</button>)}
+      </div>
+      <div>
+        <label htmlFor="recording-search" className="mb-2 block text-[13px] font-bold">녹음 검색</label>
+        <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="제목이나 메모로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label htmlFor="recording-status" className="mb-2 block text-[13px] font-bold">검토 상태</label><select id="recording-status" value={options.status} onChange={event => change({ status: event.target.value as ListOptions['status'] })} className={`${control} w-full`}><option value="all">전체 상태</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+        <div><label htmlFor="recording-sort" className="mb-2 block text-[13px] font-bold">정렬</label><select id="recording-sort" value={options.sort} onChange={event => change({ sort: event.target.value as ListOptions['sort'] })} className={`${control} w-full`}><option value="latest">최신순</option><option value="oldest">오래된순</option></select></div>
+      </div>
+      {loading ? <p role="status" className="py-10 text-center text-[14px] text-ink-sub">녹음을 불러오는 중이에요…</p> : error ? <div role="alert" className="rounded-card bg-white p-5"><p>녹음을 읽지 못했어요. 다시 시도해 주세요.</p><button type="button" onClick={onRetry} className={`mt-3 min-h-11 rounded-button bg-kakao px-4 font-bold ${focusStyle}`}>다시 불러오기</button></div> : <>
+        <p role="status" className="text-[13px] font-semibold text-ink-sub">{options.scope === "session" ? (currentSession ? `${currentSession.number}회차` : "시작한 운행 없음") : "전체 녹음"} · {list.length.toLocaleString("ko-KR")}건</p>
+        {list.length === 0 && <section className="rounded-[20px] border border-line bg-white p-6"><h2 className="font-extrabold">{recordings.length === 0 ? "아직 보관한 녹음이 없어요" : "조건에 맞는 녹음이 없어요"}</h2><p className="mt-2 text-[14px] text-ink-sub">{recordings.length === 0 ? "대기 화면에서 운행을 시작하고 첫 녹음을 남겨 주세요." : "전체 녹음을 선택하거나 검색·필터 조건을 바꿔 주세요."}</p><button type="button" onClick={() => onOptions({ ...INITIAL_LIST_OPTIONS, scope: "all" })} className={`mt-4 min-h-11 rounded-button bg-surface px-3 text-[14px] font-bold ${focusStyle}`}>전체 녹음 보기</button></section>}
+        {[...groups].map(([day, records]) => <section key={day} aria-label={day}><h2 className="mb-3 text-[14px] font-bold text-ink-sub">{day}</h2><div className="flex flex-col gap-3">{records.map(record => {
+          const session = record.sessionId ? sessionById.get(record.sessionId) : undefined;
+          const status = record.review?.status ?? "new";
+          return <button key={record.id} type="button" onClick={() => onOpen(record.id)} className={`relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left hover:border-ink-sub active:bg-kakao-soft ${focusStyle}`}>
+            <span className={`w-fit rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-[#e8f5ed] text-[#17633b]" : status === "flagged" ? "bg-[#fff0e5] text-[#944000]" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
+            <span className="text-[16px] font-bold break-words">{recordingTitle(record)}</span>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-sub"><span>{timeText(record.recordedAt)}</span><span className="inline-flex items-center gap-1 tabular-nums"><Mic className="size-3.5" aria-hidden="true" />{formatTime(record.durationSec)}</span><span>{session ? `${session.number}회차` : "이전 녹음 · 회차 미지정"}</span></span>
+            <ChevronRight className="absolute top-1/2 right-3 size-5 -translate-y-1/2 text-ink-sub" aria-hidden="true" />
+          </button>;
+        })}</div></section>)}
+        {list.length > options.limit && <button type="button" onClick={() => onOptions({ ...options, limit: options.limit + 30 })} className={`${control} font-bold`}>녹음 더 보기</button>}
+      </>}
+      <p className="py-2 text-[12px] text-ink-sub">녹음은 이 기기의 같은 브라우저에만 보관돼요.</p>
+    </div>
+  </RecordingFrame>;
+}
