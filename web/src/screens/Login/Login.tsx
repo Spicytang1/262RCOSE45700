@@ -8,7 +8,7 @@ import ProfileAvatar from "@/components/ProfileAvatar";
 
 const focusStyle = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink";
 
-export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor) => void }) {
+export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor, signal: AbortSignal) => void | Promise<void> }) {
   const { supervisors, status, reload } = useSupervisors();
   const [selected, setSelected] = useState<Supervisor | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,10 +32,10 @@ export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor) =
       try {
         const allowed = await authenticateSupervisor(selected.id, next, controller.signal);
         if (controller.signal.aborted) return;
-        if (allowed) { onLogin(selected); return; }
+        if (allowed) { await onLogin(selected, controller.signal); return; }
         setPin(""); setError("비밀번호가 맞지 않거나 선택한 감독관을 사용할 수 없어요. 다시 확인해 주세요.");
       } catch {
-        if (!controller.signal.aborted) { setPin(""); setError("로그인 정보를 확인하지 못했어요. 다시 입력하거나 목록을 새로 불러와 주세요."); }
+        if (!controller.signal.aborted) { setPin(""); setError("로그인 또는 이전 운행 종료를 완료하지 못했어요. 다시 입력하거나 목록을 새로 불러와 주세요."); }
       } finally { if (!controller.signal.aborted) setBusy(false); }
     }
   }

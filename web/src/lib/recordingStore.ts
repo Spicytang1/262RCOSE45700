@@ -1,5 +1,8 @@
 import type { DriveSession, RecordingReview, StoredRecording, SupervisorId } from "@/types/report";
 
+// TODO(backend): 아래 보관 함수는 모두 브라우저 IndexedDB 전용이며 서버 송수신이 없다.
+// 실제 연동 시 기존 원본을 지우지 말고 서버 저장소와의 이전·동기화 방식을 정한다.
+// supervisorId는 화면 필터일 뿐 접근 통제가 아니다. 서버는 로그인 세션으로 소유권을 검증해야 한다.
 const DB_NAME = "p3-supervisor-recordings";
 const STORE = "recordings";
 
@@ -36,6 +39,8 @@ function openStore(): Promise<IDBDatabase> {
 
 /** 같은 ID의 재시도만 허용하고, 기존 녹음은 덮어쓰지 않는다. */
 export async function saveRecording(recording: StoredRecording): Promise<void> {
+  // TODO(backend): 음성 Blob·녹음 ID·회차 ID·녹음 시각·길이·위치 결과를 업로드하고 서버 보관 완료를 확인한다.
+  // 같은 녹음 ID의 재시도는 중복 생성하지 않아야 하며 실패 시 원본과 최초 위치를 유지한다.
   const db = await openStore();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -67,6 +72,7 @@ export async function saveRecording(recording: StoredRecording): Promise<void> {
 }
 
 export async function getSessions(supervisorId: SupervisorId): Promise<DriveSession[]> {
+  // TODO(backend): 현재 감독관의 회차 목록과 진행 중 회차를 서버에서 조회한다.
   const db = await openStore();
   try {
     return await new Promise((resolve, reject) => {
@@ -80,6 +86,7 @@ export async function getSessions(supervisorId: SupervisorId): Promise<DriveSess
 
 /** 같은 처리 안에서 기존 운행을 확인해 중복 시작을 막는다. */
 export async function startSession(supervisorId: SupervisorId): Promise<DriveSession> {
+  // TODO(backend): 운행 시작을 서버로 전송하고 확정된 회차 ID·번호·시각을 받는다. 여러 기기의 중복 시작도 서버에서 방지한다.
   const db = await openStore();
   try {
     return await new Promise((resolve, reject) => {
@@ -101,6 +108,7 @@ export async function startSession(supervisorId: SupervisorId): Promise<DriveSes
 }
 
 export async function endSession(id: string, supervisorId: SupervisorId): Promise<void> {
+  // TODO(backend): 회차 종료를 서버로 전송하고 소유권·진행 상태를 검증한 완료 응답을 기다린다. 종료 재시도도 안전해야 한다.
   const db = await openStore();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -121,6 +129,7 @@ export async function endSession(id: string, supervisorId: SupervisorId): Promis
 }
 
 export async function getReviews(): Promise<RecordingReview[]> {
+  // TODO(backend): 현재 사용자가 접근할 수 있는 녹음의 검토 내용만 서버에서 조회한다. 현재는 로컬 전체 검토를 읽는다.
   const db = await openStore();
   try {
     return await new Promise((resolve, reject) => {
@@ -134,6 +143,8 @@ export async function getReviews(): Promise<RecordingReview[]> {
 
 /** 음성 원본을 변경하지 않고, 선택한 감독관의 검토 내용만 보관한다. */
 export async function saveReview(review: RecordingReview, supervisorId: SupervisorId): Promise<void> {
+  // TODO(backend): 녹음 ID와 제목·상태·정리 항목·기타 선택·메모를 서버에 저장하고 성공 응답을 기다린다.
+  // 원본·자동 분석 결과는 보존하고, 다른 기기의 동시 수정 충돌도 구분한다.
   const db = await openStore();
   try {
     await new Promise<void>((resolve, reject) => {
@@ -150,6 +161,7 @@ export async function saveReview(review: RecordingReview, supervisorId: Supervis
 }
 
 export async function countRecordings(supervisorId: SupervisorId): Promise<number> {
+  // TODO(backend): 서버에 보관된 현재 사용자의 녹음 건수를 조회한다. 회차별 건수 조회가 필요하면 회차 ID도 전달한다.
   const db = await openStore();
   try {
     return await new Promise<number>((resolve, reject) => {
@@ -164,6 +176,8 @@ export async function countRecordings(supervisorId: SupervisorId): Promise<numbe
 
 /** 다음 단계의 목록·상세 화면에서 사용할 읽기 기능. */
 export async function getRecordings(supervisorId: SupervisorId): Promise<StoredRecording[]> {
+  // TODO(backend): 녹음 목록·상세·위치·분석 처리 상태를 서버에서 조회하고 음성은 접근 권한이 있는 재생 경로로 받는다.
+  // 현재 audio: Blob을 전제로 하므로 응답 자료형·RecordingPlayer·useRecordingData의 원본 참조 유지도 함께 조정한다.
   const db = await openStore();
   try {
     return await new Promise<StoredRecording[]>((resolve, reject) => {

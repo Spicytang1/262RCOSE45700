@@ -72,7 +72,7 @@ export default function Standby({ permissions, onStart, profile, onSettings, rec
             type="button"
             onClick={active ? onStart : onStartSession}
             disabled={disabled || checkingPermissions}
-            className="relative flex size-44 flex-col items-center justify-center gap-2 rounded-full bg-kakao text-ink shadow-[0_10px_30px_rgba(254,229,0,0.45)] transition-transform active:scale-95 active:bg-kakao-press disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ink"
+            className={`relative flex size-44 flex-col items-center justify-center gap-2 rounded-full transition-transform active:scale-95 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ink ${active ? "bg-kakao text-ink shadow-[0_10px_30px_rgba(254,229,0,0.45)] hover:bg-kakao-press active:bg-kakao-press" : "bg-[#167347] text-white shadow-[0_10px_30px_rgba(22,115,71,0.22)] hover:bg-[#125f3b] active:bg-[#0e4c2f]"}`}
           >
             {active ? <Mic className="size-12" strokeWidth={2.2} aria-hidden="true" /> : <Play className="size-10" strokeWidth={2.2} aria-hidden="true" />}
             <span className="text-[19px] font-extrabold">{actionState === "busy" ? "처리 중…" : active ? "녹음" : "운행 시작"}</span>
