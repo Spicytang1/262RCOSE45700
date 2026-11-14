@@ -1,3 +1,14 @@
+export type SupervisorId = 1 | 2 | 3 | 4 | 5 | 6;
+
+/** 재생용 URL 대신 녹음 원본 자체를 보관한다. */
+export type StoredRecording = {
+  id: string;
+  supervisorId: SupervisorId;
+  recordedAt: string;
+  durationSec: number;
+  audio: Blob;
+};
+
 /** 녹음 한 개 (재생용 URL + 녹음 길이) */
 export type AudioClip = {
   url: string;
