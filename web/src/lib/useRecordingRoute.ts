@@ -35,6 +35,7 @@ export function navigateStandby() { window.location.hash = ""; }
 
 export default function useRecordingRoute() {
   const hash = useSyncExternalStore(subscribe, () => acceptedHash);
+  if (hash === "#/settings") return { page: "settings" as const };
   if (hash.startsWith("#/recordings/")) {
     try { return { page: "detail" as const, id: decodeURIComponent(hash.slice("#/recordings/".length)) }; }
     catch { return { page: "list" as const }; }

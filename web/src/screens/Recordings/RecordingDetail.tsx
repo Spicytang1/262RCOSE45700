@@ -6,8 +6,10 @@ import { formatTime } from "@/lib/formatTime";
 import type { DriveSession, RecordingEntry, RecordingStatus, StructuredFieldKey } from "@/types/report";
 import { RecordingFrame, RecordingHeader, RecordingPanel } from "./RecordingChrome";
 import RecordingPlayer from "./RecordingPlayer";
+import RecordingLocationMap from "./RecordingLocationMap";
 
 type Props = {
+  supervisorName: string;
   recording: RecordingEntry;
   session: DriveSession | undefined;
   position: number;
@@ -19,7 +21,7 @@ type Props = {
   onSaved: () => void;
 };
 
-export default function RecordingDetail({ recording, session, position, total, previousId, nextId, onOpen, onBack, onSaved }: Props) {
+export default function RecordingDetail({ supervisorName, recording, session, position, total, previousId, nextId, onOpen, onBack, onSaved }: Props) {
   const { draft, phase, change, flush, leave } = useReviewAutosave(recording, onSaved);
 
   const control = `w-full rounded-button border border-line bg-white px-3 py-3 text-[15px] ${focusStyle}`;
@@ -36,7 +38,7 @@ export default function RecordingDetail({ recording, session, position, total, p
         <p className="text-[12px] font-bold text-kakao">{session ? `${session.number}회차 · ${session.endedAt ? "운행 종료" : "운행 중"}` : "이전 녹음 · 회차 미지정"}</p>
         <h2 className="mt-2 text-[20px] font-extrabold break-words">{recordingTitle({ ...recording, review: draft })}</h2>
         <p className="mt-3 text-[13px] text-white/85">{dateText(recording.recordedAt)} {timeText(recording.recordedAt)}</p>
-        <p className="mt-1 text-[13px] text-white/85">감독관 {recording.supervisorId} · 녹음 {formatTime(recording.durationSec)}</p>
+        <p className="mt-1 text-[13px] text-white/85 [overflow-wrap:anywhere]">{supervisorName} · 녹음 {formatTime(recording.durationSec)}</p>
       </section>
       <div className="rounded-card border border-line bg-white px-4 py-3">
         <p role="status" className="text-[13px] font-semibold text-ink-sub">{phase === "saved" ? "변경 내용을 자동 저장했어요." : phase === "error" ? "자동 저장을 완료하지 못했어요." : phase === "saving" ? "자동 저장 중이에요…" : "변경 내용을 반영하고 있어요…"}</p>
@@ -71,7 +73,8 @@ export default function RecordingDetail({ recording, session, position, total, p
           </div>;
         })}</fieldset>
       </RecordingPanel>
-      <RecordingPanel title="차량 데이터"><p className="text-[14px] text-ink-sub">이전 동작은 차량에서 수집했다고 가정한 예시예요. 차선 유형·위경도·횡저크·종저크·속도도 차량 데이터로 연동할 수 있지만, 지금은 실제 차량과 연결되지 않았어요.</p></RecordingPanel>
+      <RecordingLocationMap location={recording.location} />
+      <RecordingPanel title="차량 데이터"><p className="text-[14px] text-ink-sub">이전 동작은 차량에서 수집했다고 가정한 예시예요. 실제 차량 로그는 아직 연결되지 않았어요. 위 지도는 차량 위치가 아니라 녹음 시작 시 요청한 기기 위치예요.</p></RecordingPanel>
       <RecordingPanel title="메모"><label htmlFor="recording-note" className="mb-2 block text-[13px] text-ink-sub">사건 맥락이나 확인할 내용을 남겨 주세요.</label><textarea id="recording-note" name="recording-note" value={draft.note} onChange={event => { const note = event.target.value; change(current => ({ ...current, note })); }} rows={4} maxLength={5000} className={`${control} resize-y`} /></RecordingPanel>
       <p className="px-1 py-2 text-[12px] text-ink-sub">수정 내용은 이 브라우저에 자동 저장돼요. 원본 음성은 바꾸지 않아요.</p>
     </div>

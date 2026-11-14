@@ -1,4 +1,11 @@
-export type SupervisorId = 1 | 2 | 3 | 4 | 5 | 6;
+/** 목록에서 받은 고유 번호를 사용한다. 기존 숫자 ID도 그대로 유지한다. */
+export type SupervisorId = number | string;
+
+export type Supervisor = {
+  id: SupervisorId;
+  name: string;
+  photoUrl: string | null;
+};
 
 export type DriveSession = {
   id: string;
@@ -21,6 +28,12 @@ export type RecordingReview = {
 };
 export type RecordingEntry = StoredRecording & { review?: RecordingReview };
 
+/** 녹음 버튼을 누를 때 요청한 기기 위치. 사건 시각의 차량 위치와는 다르다. */
+export type RecordingLocation = { requestedAt: string } & (
+  | { status: "available"; latitude: number; longitude: number; accuracy: number; capturedAt: string }
+  | { status: "denied" | "timeout" | "unavailable" | "unsupported" | "insecure" }
+);
+
 /** 재생용 URL 대신 녹음 원본 자체를 보관한다. */
 export type StoredRecording = {
   id: string;
@@ -30,6 +43,8 @@ export type StoredRecording = {
   audio: Blob;
   /** 기존 녹음에는 없으며, 회차를 임의 배정하지 않는다. */
   sessionId?: string;
+  /** 이전 녹음에는 위치가 없다. 상세를 열 때 현재 위치로 덮어쓰지 않는다. */
+  location?: RecordingLocation;
 };
 
 /** 녹음 한 개 (재생용 URL + 녹음 길이) */

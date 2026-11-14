@@ -11,14 +11,21 @@ import RecordingList from "@/screens/Recordings/RecordingList";
 import { filteredRecordings, INITIAL_LIST_OPTIONS, type ListOptions } from "@/lib/recordingList";
 import RecordingDetail from "@/screens/Recordings/RecordingDetail";
 import { RecordingFrame, RecordingHeader } from "@/screens/Recordings/RecordingChrome";
-import type { AudioClip, StoredRecording, SupervisorId } from "@/types/report";
+import type { AudioClip, RecordingLocation, StoredRecording, Supervisor } from "@/types/report";
+import { captureRecordingLocation } from "@/lib/recordingLocation";
+import { resolveSupervisor, useSessionProfiles } from "@/lib/sessionProfiles";
+import Settings from "@/screens/Settings/Settings";
+import { requestDrivePermissions, type DrivePermissions } from "@/lib/drivePermissions";
 
 type Screen = "login" | "standby" | "record" | "addRecord" | "review";
 
 /** 로그인 → 대기 → 녹음 → 보관 → 대기. 기존 검토 흐름은 보존한다. */
 export default function App() {
   const [screen, setScreen] = useState<Screen>("login");
-  const [supervisorId, setSupervisorId] = useState<SupervisorId | null>(null);
+  const [supervisor, setSupervisor] = useState<Supervisor | null>(null);
+  const profiles = useSessionProfiles();
+  const profile = supervisor ? resolveSupervisor(supervisor, profiles) : null;
+  const supervisorId = supervisor?.id ?? null;
   const data = useRecordingData(supervisorId);
   const route = useRecordingRoute();
   const [listOptions, setListOptions] = useState<ListOptions>(INITIAL_LIST_OPTIONS);
@@ -31,7 +38,43 @@ export default function App() {
   const [saveError, setSaveError] = useState(false);
   const savingRef = useRef(false);
   const startedAt = useRef("");
+  const locationRequest = useRef<{ controller: AbortController; result: Promise<RecordingLocation> } | null>(null);
   const [audioClips, setAudioClips] = useState<AudioClip[]>([]);
+  const [drivePermissions, setDrivePermissions] = useState<DrivePermissions | null>(null);
+  const permissionRequest = useRef<AbortController | null>(null);
+
+  useEffect(() => () => { locationRequest.current?.controller.abort(); permissionRequest.current?.abort(); }, []);
+
+  function checkDrivePermissions() {
+    permissionRequest.current?.abort();
+    const controller = new AbortController();
+    permissionRequest.current = controller;
+    setDrivePermissions({ microphone: "checking", location: "checking" });
+    void requestDrivePermissions(controller.signal, (kind, status) => {
+      setDrivePermissions(current => !controller.signal.aborted && current ? { ...current, [kind]: status } : current);
+    });
+  }
+
+  function clearDrivePermissions() {
+    permissionRequest.current?.abort();
+    permissionRequest.current = null;
+    setDrivePermissions(null);
+  }
+
+  function cancelRecording() {
+    locationRequest.current?.controller.abort();
+    locationRequest.current = null;
+    setScreen("standby");
+  }
+
+  function beginRecording() {
+    if (!activeSession || sessionAction || data.loading || data.error || drivePermissions?.microphone === "checking" || drivePermissions?.location === "checking") return;
+    locationRequest.current?.controller.abort();
+    const controller = new AbortController();
+    startedAt.current = new Date().toISOString();
+    locationRequest.current = { controller, result: captureRecordingLocation(controller.signal) };
+    setNotice(""); navigateStandby(); setScreen("record");
+  }
 
   const currentSession = data.sessions.find(session => !session.endedAt) ?? data.sessions[0];
   const activeSession = currentSession && !currentSession.endedAt ? currentSession : undefined;
@@ -42,17 +85,18 @@ export default function App() {
     actionLock.current = true;
     setSessionAction(action); setActionError(""); setNotice("");
     try {
-      if (action === "start") await startSession(supervisorId);
-      else if (activeSession) await endSession(activeSession.id, supervisorId);
+      if (action === "start") { checkDrivePermissions(); await startSession(supervisorId); }
+      else if (activeSession) { await endSession(activeSession.id, supervisorId); clearDrivePermissions(); }
       await data.reload();
       if (logout) logoutSupervisor();
       else setNotice(action === "start" ? "운행을 시작했어요. 상황이 안정된 후 녹음해 주세요." : "운행을 종료했어요. 녹음 목록에서 기록을 확인해 주세요.");
-    } catch { setActionError(`운행을 ${action === "start" ? "시작" : "종료"}하지 못했어요. 다시 시도해 주세요.`); }
+    } catch { if (action === "start") clearDrivePermissions(); setActionError(`운행을 ${action === "start" ? "시작" : "종료"}하지 못했어요. 다시 시도해 주세요.`); }
     finally { actionLock.current = false; setSessionAction(null); }
   }
 
   function logoutSupervisor() {
-    clearClips(); setSupervisorId(null); setNotice(""); setActionError(""); setScreen("login");
+    clearDrivePermissions();
+    clearClips(); setSupervisor(null); setNotice(""); setActionError(""); setScreen("login");
     setListOptions(INITIAL_LIST_OPTIONS); navigateStandby();
   }
 
@@ -93,8 +137,13 @@ export default function App() {
     setSaveError(false);
     try {
       if (!recording.audio.size) throw new Error("빈 녹음");
-      await saveRecording(recording);
+      const location = recording.location ?? await locationRequest.current?.result;
+      const complete = { ...recording, ...(location ? { location } : {}) };
+      // 보관 실패 시 재시도해도 처음 받은 위치와 원본을 그대로 유지한다.
+      setPending(complete);
+      await saveRecording(complete);
       await data.reload();
+      locationRequest.current = null;
       setPending(null);
       setNotice("녹음을 보관했어요. 주행 감독에 집중해 주세요.");
       setScreen("standby");
@@ -131,19 +180,19 @@ export default function App() {
       <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col justify-center bg-white px-6 py-8 leading-[1.8]">
         <h1 className="text-[24px] font-extrabold tracking-tight">{saveError ? "녹음을 아직 보관하지 못했어요" : "녹음을 보관하고 있어요"}</h1>
         <p role={saveError ? "alert" : "status"} className="mt-4 text-[15px] text-ink-sub">
-          {saveError ? "이 화면에서 녹음을 유지하고 있어요. 기기의 저장 공간이나 브라우저의 저장 허용 여부를 확인한 뒤 다시 시도해 주세요. 화면을 닫거나 새로고침하면 이 녹음은 사라질 수 있어요." : "완료되면 자동으로 대기 화면으로 돌아가요. 잠시만 기다려 주세요."}
+          {saveError ? "이 화면에서 녹음을 유지하고 있어요. 기기의 저장 공간이나 브라우저의 저장 허용 여부를 확인한 뒤 다시 시도해 주세요. 화면을 닫거나 새로고침하면 이 녹음은 사라질 수 있어요." : "녹음과 시작 시 요청한 위치를 보관하고 있어요. 위치 확인은 최대 10초 기다리며, 확인하지 못해도 음성은 보관해요. 완료되면 대기로 돌아가요."}
         </p>
         {saveError && <Button autoFocus onClick={() => void commitRecording(pending)} disabled={saving} className="mt-6 focus-visible:outline-2 focus-visible:outline-offset-4">보관 다시 시도</Button>}
       </main>
     );
   }
 
-  if (screen === "login" || supervisorId === null) {
-    return <Login onLogin={(id) => { setSupervisorId(id); setNotice(""); setActionError(""); setScreen("standby"); }} />;
+  if (screen === "login" || supervisorId === null || !profile) {
+    return <Login onLogin={(selected) => { setSupervisor(selected); setNotice(""); setActionError(""); setScreen("standby"); }} />;
   }
 
   if (screen === "record") {
-    return <Record onFinish={handleFinish} onCancel={() => setScreen("standby")} />;
+    return <Record onFinish={handleFinish} onCancel={cancelRecording} />;
   }
 
   // 기본 흐름에서 미사용. 기존 화면 및 연결은 후속 검토 기능을 위해 보존.
@@ -162,8 +211,10 @@ export default function App() {
     );
   }
 
+  if (route.page === "settings") return <Settings profile={profile} onBack={navigateStandby} />;
+
   if (route.page === "list") {
-    return <RecordingList supervisorId={supervisorId} recordings={data.recordings} sessions={data.sessions} currentSession={currentSession} options={listOptions} onOptions={setListOptions} onOpen={navigateRecordings} onBack={navigateStandby} loading={data.loading} error={data.error} onRetry={() => void data.reload()} />;
+    return <RecordingList supervisorName={profile.name} recordings={data.recordings} sessions={data.sessions} currentSession={currentSession} options={listOptions} onOptions={setListOptions} onOpen={navigateRecordings} onBack={navigateStandby} loading={data.loading} error={data.error} onRetry={() => void data.reload()} />;
   }
 
   if (route.page === "detail") {
@@ -173,18 +224,20 @@ export default function App() {
     const filtered = filteredRecordings(data.recordings, currentSession, listOptions);
     const siblings = filtered.some(item => item.id === record.id) ? filtered : data.recordings;
     const index = siblings.findIndex(item => item.id === record.id);
-    return <RecordingDetail key={record.id} recording={record} session={data.sessions.find(session => session.id === record.sessionId)} position={index + 1} total={siblings.length} previousId={siblings[index - 1]?.id} nextId={siblings[index + 1]?.id} onOpen={navigateRecordings} onBack={() => navigateRecordings()} onSaved={() => void data.reload()} />;
+    return <RecordingDetail key={record.id} supervisorName={profile.name} recording={record} session={data.sessions.find(session => session.id === record.sessionId)} position={index + 1} total={siblings.length} previousId={siblings[index - 1]?.id} nextId={siblings[index + 1]?.id} onOpen={navigateRecordings} onBack={() => navigateRecordings()} onSaved={() => void data.reload()} />;
   }
 
   return <Standby
-    supervisorId={supervisorId}
+    permissions={drivePermissions}
+    profile={profile}
+    onSettings={() => { window.location.hash = "/settings"; }}
     recordingCount={recordingCount}
     session={currentSession}
     loadState={data.loading ? "loading" : data.error ? "error" : "ready"}
     actionState={sessionAction ? "busy" : "idle"}
     actionError={actionError}
     notice={notice}
-    onStart={() => { if (!activeSession || sessionAction || data.loading || data.error) return; startedAt.current = new Date().toISOString(); setNotice(""); navigateStandby(); setScreen("record"); }}
+    onStart={beginRecording}
     onStartSession={() => void changeSession("start")}
     onEndSession={() => { if (window.confirm("이번 운행을 종료할까요? 보관한 녹음은 그대로 남아요.")) void changeSession("end"); }}
     onOpenRecordings={() => { setListOptions(INITIAL_LIST_OPTIONS); navigateRecordings(); }}

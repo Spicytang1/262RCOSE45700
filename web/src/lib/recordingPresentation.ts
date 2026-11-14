@@ -14,6 +14,10 @@ export const focusStyle = "focus-visible:outline-2 focus-visible:outline-offset-
 export const dateText = (value: string) => new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(new Date(value));
 export const timeText = (value: string) => new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
 export const recordingTitle = (record: RecordingEntry) => record.review?.title || `${timeText(record.recordedAt)} 주행 이슈 녹음`;
+export function recordingSummary(record: RecordingEntry) {
+  const review = reviewFor(record);
+  return (Object.keys(FIELD_CONFIG) as StructuredFieldKey[]).map(key => review.fields[key]?.trim() || `${FIELD_CONFIG[key].label} ${review.otherFields?.includes(key) ? "기타" : "미입력"}`).join(" / ");
+}
 export function reviewFor(record: RecordingEntry): RecordingReview {
   const review = record.review ?? { id: record.id, title: "", status: "new" as const, note: "", fields: {} };
   return { ...review, fields: { ...DEMO_FIELDS, ...review.fields } };

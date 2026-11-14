@@ -1,10 +1,14 @@
-import { ChevronRight, Info, Mic, Play } from "lucide-react";
-import type { DriveSession, SupervisorId } from "@/types/report";
+import { ChevronRight, Info, Mic, Play, Settings } from "lucide-react";
+import type { DriveSession, Supervisor } from "@/types/report";
+import ProfileAvatar from "@/components/ProfileAvatar";
 import { focusStyle } from "@/lib/recordingPresentation";
+import type { DrivePermissions } from "@/lib/drivePermissions";
 
 type Props = {
+  permissions: DrivePermissions | null;
   onStart: () => void;
-  supervisorId: SupervisorId;
+  profile: Supervisor;
+  onSettings: () => void;
   recordingCount: number;
   session: DriveSession | undefined;
   loadState: "loading" | "error" | "ready";
@@ -18,13 +22,15 @@ type Props = {
   onRetry: () => void;
 };
 
-export default function Standby({ onStart, supervisorId, recordingCount, session, loadState, actionState, actionError, notice, onChangeSupervisor, onStartSession, onEndSession, onOpenRecordings, onRetry }: Props) {
+export default function Standby({ permissions, onStart, profile, onSettings, recordingCount, session, loadState, actionState, actionError, notice, onChangeSupervisor, onStartSession, onEndSession, onOpenRecordings, onRetry }: Props) {
   const active = !!session && !session.endedAt;
   const disabled = loadState !== "ready" || actionState === "busy";
+  const checkingPermissions = permissions?.microphone === "checking" || permissions?.location === "checking";
   return (
     <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-white px-5 pt-6 pb-8">
       <header className="flex items-center justify-between">
-        <h1 className="text-[22px] font-extrabold tracking-tight">주행 이슈 리포트</h1>
+        <h1 className="text-[20px] font-extrabold tracking-tight">주행 이슈 리포트</h1>
+        <button type="button" onClick={onSettings} disabled={actionState === "busy"} aria-label="환경설정" className={`ml-auto mr-1 flex size-11 shrink-0 items-center justify-center rounded-button hover:bg-surface disabled:opacity-40 ${focusStyle}`}><Settings className="size-5" aria-hidden="true" /></button>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[13px] font-semibold text-ink-sub">
           <span className={`size-2 rounded-full ${active ? "bg-[#16a55c]" : "bg-ink-sub"}`} aria-hidden="true" />
           {loadState === "loading" ? "확인 중" : active ? "운행 중" : "운행 대기"}
@@ -37,7 +43,8 @@ export default function Standby({ onStart, supervisorId, recordingCount, session
       >
         <div className="flex flex-col items-center gap-1 py-5">
           <span className="text-[13px] font-medium text-ink-sub">현재 감독관</span>
-          <span className="text-[21px] font-extrabold">감독관 {supervisorId}</span>
+          <ProfileAvatar profile={profile} size="small" />
+          <span className="w-full px-3 text-center text-[19px] font-extrabold [overflow-wrap:anywhere]">{profile.name}</span>
           <button type="button" onClick={onChangeSupervisor} disabled={disabled} className="min-h-11 rounded-button px-3 text-[13px] font-semibold text-ink-sub underline underline-offset-4 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2">감독관 변경</button>
         </div>
         <button type="button" onClick={onOpenRecordings} disabled={actionState === "busy"} className="flex flex-col items-center justify-center gap-1 py-5 hover:bg-kakao-soft active:bg-kakao focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ink disabled:opacity-40">
@@ -64,7 +71,7 @@ export default function Standby({ onStart, supervisorId, recordingCount, session
           <button
             type="button"
             onClick={active ? onStart : onStartSession}
-            disabled={disabled}
+            disabled={disabled || checkingPermissions}
             className="relative flex size-44 flex-col items-center justify-center gap-2 rounded-full bg-kakao text-ink shadow-[0_10px_30px_rgba(254,229,0,0.45)] transition-transform active:scale-95 active:bg-kakao-press disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ink"
           >
             {active ? <Mic className="size-12" strokeWidth={2.2} aria-hidden="true" /> : <Play className="size-10" strokeWidth={2.2} aria-hidden="true" />}
@@ -76,7 +83,7 @@ export default function Standby({ onStart, supervisorId, recordingCount, session
 
       <p className="flex items-center justify-center gap-2 rounded-button bg-surface px-4 py-3.5 text-[14px] text-ink-sub">
         <Info className="size-4 shrink-0 text-ink-muted" aria-hidden="true" />
-        상황이 안정된 후 버튼을 눌러 말씀해 주세요.
+        <span>운행 시작 때 마이크·위치 권한을 확인해요. 위치는 녹음 시작 때 새로 받아요.</span>
       </p>
     </main>
   );
