@@ -12,6 +12,17 @@ export const FIELD_CONFIG: Record<StructuredFieldKey, { label: string; descripti
 export const DEMO_TRANSCRIPT = "직진하는데 보행자 튀어나와서 수동감속했음";
 // TODO(backend): 목록 표시와 검색에 함께 쓰는 임시 주소다. 실제 연결 시 녹음별 주소 응답으로 교체한다.
 export const DEMO_ADDRESS = "XX동 XX로";
+// TODO(backend): 녹음 시각·회차에 연결된 차량 로그 응답으로 교체한다. 기기에서 얻은 녹음 위치와 별개다.
+// 아래 값은 모든 녹음에 동일하게 표시하는 예시다. 원본·검토 기록에 저장하거나 실제 지도 핀으로 사용하지 않는다.
+export const DEMO_VEHICLE_DATA = [
+  { label: "차선 유형", value: "차선" },
+  { label: "위도·경도", value: "37.566500, 126.978000" },
+  { label: "차가 하던 동작", value: "직진" },
+  { label: "대상 유형", value: "보행자" },
+  { label: "횡저크", value: "0.2 m/s³" },
+  { label: "종저크", value: "-0.8 m/s³" },
+  { label: "속도", value: "30 km/h" },
+] as const;
 // TODO(backend): 장소·이전 동작·대상 유형·반응을 녹음별 분석/차량 연동 결과로 교체한다. 사용자 수정 값과 분석 원본은 구분한다.
 const DEMO_FIELDS = { roadType: "직선로", previousAction: "직진", targetType: "보행자", reaction: "급감속" };
 export const focusStyle = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink";

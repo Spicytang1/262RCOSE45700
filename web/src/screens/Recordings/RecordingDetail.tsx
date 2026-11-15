@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Button from "@/components/Button";
-import { dateText, DEMO_TRANSCRIPT, FIELD_CONFIG, focusStyle, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
+import { dateText, DEMO_TRANSCRIPT, DEMO_VEHICLE_DATA, FIELD_CONFIG, focusStyle, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
 import useReviewAutosave from "@/lib/useReviewAutosave";
 import { formatTime } from "@/lib/formatTime";
 import type { DriveSession, RecordingEntry, RecordingStatus, StructuredFieldKey } from "@/types/report";
@@ -89,7 +89,17 @@ export default function RecordingDetail({ supervisorName, recording, session, po
       </RecordingPanel>
       <RecordingLocationMap location={recording.location} />
       {/* TODO(backend): 녹음 시각·회차와 연결된 차량 로그(이전 동작·속도·차선·저크 등)를 서버에서 조회해 표시한다. 기기 위치를 차량 GPS로 대체 사용하지 않는다. */}
-      <RecordingPanel title="차량 데이터"><p className="text-[14px] text-ink-sub">이전 동작은 차량에서 수집했다고 가정한 예시예요. 실제 차량 로그는 아직 연결되지 않았어요. 위 지도는 차량 위치가 아니라 녹음 시작 시 요청한 기기 위치예요.</p></RecordingPanel>
+      <RecordingPanel title="차량 데이터">
+        <span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">임시 데이터</span>
+        <h3 className="text-[14px] font-bold">차량에서 수집할 수 있는 항목</h3>
+        <p className="mt-2 text-[13px] text-ink-sub">모든 녹음에 동일한 예시를 표시해요. 실제 차량과는 연결되지 않았으며, 위 지도에 표시하는 기기 위치와도 별개예요.</p>
+        <dl className="mt-3 divide-y divide-line">
+          {DEMO_VEHICLE_DATA.map(({ label, value }) => <div key={label} className="flex items-start justify-between gap-3 py-3">
+            <dt className="shrink-0 text-[13px] text-ink-sub">{label}</dt>
+            <dd className="min-w-0 text-right text-[14px] font-bold tabular-nums [overflow-wrap:anywhere]"><span className="mr-1 text-[11px] font-normal text-ink-sub">예시</span>{value}</dd>
+          </div>)}
+        </dl>
+      </RecordingPanel>
       <RecordingPanel title="메모"><label htmlFor="recording-note" className="mb-2 block text-[13px] text-ink-sub">사건 맥락이나 확인할 내용을 남겨 주세요.</label><textarea id="recording-note" name="recording-note" value={draft.note} onChange={event => { const note = event.target.value; change(current => ({ ...current, note })); }} rows={4} maxLength={5000} className={`${control} resize-y`} /></RecordingPanel>
       <p className="px-1 py-2 text-[12px] text-ink-sub">수정 내용은 이 브라우저에 자동 저장돼요. 원본 음성은 바꾸지 않아요.</p>
     </div>

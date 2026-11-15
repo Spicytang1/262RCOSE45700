@@ -42,7 +42,7 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
       </div>
       <div>
         <label htmlFor="recording-search" className="mb-2 block text-[13px] font-bold">녹음 검색</label>
-        <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="정리 항목·주소·제목·메모로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
+        <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="전사·정리 항목·주소 등으로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label htmlFor="recording-status" className="mb-2 block text-[13px] font-bold">검토 상태</label><select id="recording-status" value={options.status} onChange={event => change({ status: event.target.value as ListOptions['status'] })} className={`${control} w-full`}><option value="all">전체 상태</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
