@@ -160,19 +160,7 @@ export async function saveReview(review: RecordingReview, supervisorId: Supervis
   } finally { db.close(); }
 }
 
-export async function countRecordings(supervisorId: SupervisorId): Promise<number> {
-  // TODO(backend): 서버에 보관된 현재 사용자의 녹음 건수를 조회한다. 회차별 건수 조회가 필요하면 회차 ID도 전달한다.
-  const db = await openStore();
-  try {
-    return await new Promise<number>((resolve, reject) => {
-      const transaction = db.transaction(STORE, "readonly");
-      const request = transaction.objectStore(STORE).index("supervisorId").count(supervisorId);
-      transaction.oncomplete = () => resolve(request.result);
-      transaction.onabort = () => reject(transaction.error);
-      transaction.onerror = () => reject(transaction.error);
-    });
-  } finally { db.close(); }
-}
+
 
 /** 다음 단계의 목록·상세 화면에서 사용할 읽기 기능. */
 export async function getRecordings(supervisorId: SupervisorId): Promise<StoredRecording[]> {
