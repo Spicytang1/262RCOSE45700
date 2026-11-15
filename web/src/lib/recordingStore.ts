@@ -144,6 +144,7 @@ export async function getReviews(): Promise<RecordingReview[]> {
 /** 음성 원본을 변경하지 않고, 선택한 감독관의 검토 내용만 보관한다. */
 export async function saveReview(review: RecordingReview, supervisorId: SupervisorId): Promise<void> {
   // TODO(backend): 녹음 ID와 제목·상태·정리 항목·기타 선택·메모를 서버에 저장하고 성공 응답을 기다린다.
+  // 기타 입력 보관용 otherFieldValues도 송수신한다. 현재 선택 값(fields)과 구분해 목록·검색에는 선택 값만 사용한다.
   // 원본·자동 분석 결과는 보존하고, 다른 기기의 동시 수정 충돌도 구분한다.
   const db = await openStore();
   try {
