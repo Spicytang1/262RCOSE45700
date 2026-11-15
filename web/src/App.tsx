@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Login from "@/screens/Login/Login";
 import Standby from "@/screens/Standby/Standby";
 import Record from "@/screens/Record/Record";
-import Review from "@/screens/Review/Review";
+// import Review from "@/screens/Review/Review";
 import Button from "@/components/Button";
 import { endSession, getSessions, saveRecording, startSession } from "@/lib/recordingStore";
 import useRecordingData from "@/lib/useRecordingData";
