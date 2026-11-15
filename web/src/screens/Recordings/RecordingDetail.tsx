@@ -68,11 +68,22 @@ export default function RecordingDetail({ supervisorName, recording, session, po
             <p id={`hint-${key}`} className="mb-2 text-[12px] text-ink-sub">{config.description}{key === "previousAction" ? " · 차량 데이터 수집을 가정한 예시" : ""}</p>
             <select id={`field-${key}`} name={`field-${key}`} aria-describedby={`hint-${key}`} value={isOther ? "__other__" : value} onChange={event => {
               const selection = event.target.value;
-              change(current => ({ ...current, fields: { ...current.fields, [key]: selection === "__other__" ? "" : selection }, otherFields: selection === "__other__" ? [...(current.otherFields ?? []).filter(field => field !== key), key] : (current.otherFields ?? []).filter(field => field !== key) }));
+              change(current => {
+                const previous = current.fields[key] ?? "";
+                const wasOther = current.otherFields?.includes(key) || !config.options.includes(previous);
+                // 이전 형식의 기타 값도 첫 전환 시 보존한다. 빈 문자열은 사용자가 지운 값이므로 그대로 유지한다.
+                const otherFieldValues = { ...current.otherFieldValues, ...(wasOther ? { [key]: previous } : {}) };
+                return {
+                  ...current,
+                  fields: { ...current.fields, [key]: selection === "__other__" ? otherFieldValues[key] ?? "" : selection },
+                  otherFields: selection === "__other__" ? [...(current.otherFields ?? []).filter(field => field !== key), key] : (current.otherFields ?? []).filter(field => field !== key),
+                  otherFieldValues,
+                };
+              });
             }} className={control}>
               {config.options.map(option => <option key={option} value={option}>{option}</option>)}<option value="__other__">기타</option>
             </select>
-            {isOther && <div className="mt-3"><label htmlFor={`other-${key}`} className="mb-2 block text-[13px] font-semibold">{config.label} 기타 내용</label><input id={`other-${key}`} name={`other-${key}`} value={value} maxLength={500} onChange={event => { const text = event.target.value; change(current => ({ ...current, fields: { ...current.fields, [key]: text } })); }} placeholder="기타 내용을 입력해 주세요" className={control} /></div>}
+            {isOther && <div className="mt-3"><label htmlFor={`other-${key}`} className="mb-2 block text-[13px] font-semibold">{config.label} 기타 내용</label><input id={`other-${key}`} name={`other-${key}`} value={value} maxLength={500} onChange={event => { const text = event.target.value; change(current => ({ ...current, fields: { ...current.fields, [key]: text }, otherFieldValues: { ...current.otherFieldValues, [key]: text } })); }} placeholder="기타 내용을 입력해 주세요" className={control} /></div>}
           </div>;
         })}</fieldset>
       </RecordingPanel>

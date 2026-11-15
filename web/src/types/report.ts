@@ -25,6 +25,8 @@ export type RecordingReview = {
   /** 이전 수기 항목도 지우지 않고 보존한다. */
   fields: Partial<Record<StructuredFieldKey | "location" | "event" | "situation" | "weather", string>>;
   otherFields?: StructuredFieldKey[];
+  /** 다른 선택지로 바꿔도 마지막 기타 입력을 항목별로 보관한다. 기존 기록에는 없을 수 있다. */
+  otherFieldValues?: Partial<Record<StructuredFieldKey, string>>;
 };
 export type RecordingEntry = StoredRecording & { review?: RecordingReview };
 
