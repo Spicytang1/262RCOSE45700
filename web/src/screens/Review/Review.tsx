@@ -56,6 +56,7 @@ function MockBadge() {
 }
 
 export default function Review({ audioClips, onAdd, onBack, onSave }: Props) {
+  // TODO(backend): 기본 흐름에서 미사용이다. 재사용 시 기록 ID로 전사·필드·근거를 서버에서 조회하고 mockReview 의존을 제거한다.
   const [review] = useState<ReviewData>(mockReview);
 
   const fields = Object.entries(review.fields);

@@ -1,0 +1,8 @@
+{
+  "name": "voice-issue-report-preview",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "postinstall": "npm --prefix web install --no-audit --no-fund"
+  }
+}

@@ -1,3 +1,54 @@
+/** 목록에서 받은 고유 번호를 사용한다. 기존 숫자 ID도 그대로 유지한다. */
+export type SupervisorId = number | string;
+
+export type Supervisor = {
+  id: SupervisorId;
+  name: string;
+  photoUrl: string | null;
+};
+
+export type DriveSession = {
+  id: string;
+  supervisorId: SupervisorId;
+  number: number;
+  startedAt: string;
+  endedAt: string | null;
+};
+
+export type RecordingStatus = "new" | "reviewed" | "flagged";
+export type StructuredFieldKey = "roadType" | "previousAction" | "targetType" | "reaction";
+export type RecordingReview = {
+  id: string;
+  title: string;
+  status: RecordingStatus;
+  note: string;
+  /** 이전 수기 항목도 지우지 않고 보존한다. */
+  fields: Partial<Record<StructuredFieldKey | "location" | "event" | "situation" | "weather", string>>;
+  otherFields?: StructuredFieldKey[];
+  /** 다른 선택지로 바꿔도 마지막 기타 입력을 항목별로 보관한다. 기존 기록에는 없을 수 있다. */
+  otherFieldValues?: Partial<Record<StructuredFieldKey, string>>;
+};
+export type RecordingEntry = StoredRecording & { review?: RecordingReview };
+
+/** 녹음 버튼을 누를 때 요청한 기기 위치. 사건 시각의 차량 위치와는 다르다. */
+export type RecordingLocation = { requestedAt: string } & (
+  | { status: "available"; latitude: number; longitude: number; accuracy: number; capturedAt: string }
+  | { status: "denied" | "timeout" | "unavailable" | "unsupported" | "insecure" }
+);
+
+/** 재생용 URL 대신 녹음 원본 자체를 보관한다. */
+export type StoredRecording = {
+  id: string;
+  supervisorId: SupervisorId;
+  recordedAt: string;
+  durationSec: number;
+  audio: Blob;
+  /** 기존 녹음에는 없으며, 회차를 임의 배정하지 않는다. */
+  sessionId?: string;
+  /** 이전 녹음에는 위치가 없다. 상세를 열 때 현재 위치로 덮어쓰지 않는다. */
+  location?: RecordingLocation;
+};
+
 /** 녹음 한 개 (재생용 URL + 녹음 길이) */
 export type AudioClip = {
   url: string;

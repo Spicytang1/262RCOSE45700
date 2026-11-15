@@ -1,6 +1,7 @@
 import type { ReviewData } from "@/types/report";
 
 // 실제 서버 연결 전까지 쓰는 임시 가짜 데이터
+// TODO(backend): 기존 Review 화면의 전사·구조화·근거·시각·기록 ID가 모두 고정 예시다. 서버의 기록별 결과로 교체한다.
 export const mockReview: ReviewData = {
   report_id: "report-001",
   recorded_at: "2026-10-30T14:20:00+09:00",
