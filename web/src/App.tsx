@@ -187,9 +187,11 @@ export default function App() {
     }
   }
 
+
+  //추가녹음 화면용 함수 (추가녹음 화면 현재 미사용)
+  /*
   function handleAddFinish(blob: Blob, durationSec: number) {
-    // TODO(backend): 기본 흐름에서 미사용인 추가 녹음이다. 재사용 시 Blob을 서버에 업로드하고 원래 기록 ID와 연결한다.
-    // 추가 녹음을 재생용 URL 배열에 덧붙이고 기록 확인 화면으로 전환
+
     console.log("추가녹음 형식:", blob.type, "크기:", blob.size);
     setAudioClips((prev) => [
       ...prev,
@@ -197,16 +199,20 @@ export default function App() {
     ]);
     setScreen("review");
   }
+    */
 
+  //녹음 결과 화면용 함수 (녹음 결과 화면 현재 미사용)
+  /*
   function handleSave() {
-    // TODO(backend): 기본 흐름에서 미사용인 Review의 저장 버튼이다. 현재 저장 없이 이동만 하므로 서버 저장 성공 후 이동하도록 연결한다.
-    setScreen("standby");
+     setScreen("standby");
   }
 
   function handleDeleteAndBack() {
     clearClips();
     setScreen("standby");
   }
+
+  */
 
   if (pending) {
     return (
@@ -228,11 +234,16 @@ export default function App() {
     return <Record onFinish={handleFinish} onCancel={cancelRecording} />;
   }
 
-  // 기본 흐름에서 미사용. 기존 화면 및 연결은 후속 검토 기능을 위해 보존.
+  //추가녹음 화면 (미사용)
+  /* 
   if (screen === "addRecord") {
     return <Record onFinish={handleAddFinish} onCancel={() => setScreen("review")} />;
   }
+    */
 
+
+  //녹음 결과 화면 (미사용)
+  /*
   if (screen === "review") {
     return (
       <Review
@@ -243,6 +254,7 @@ export default function App() {
       />
     );
   }
+    */
 
   if (route.page === "settings") return <Settings profile={profile} onBack={navigateStandby} />;
 
