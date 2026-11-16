@@ -280,7 +280,6 @@ export default function App() {
   return <Standby
     permissions={drivePermissions}
     profile={profile}
-    onSettings={() => { window.location.hash = "/settings"; }}
     recordingCount={recordingCount}
     session={currentSession}
     loadState={data.loading ? "loading" : data.error ? "error" : "ready"}
