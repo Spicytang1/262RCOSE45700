@@ -32,6 +32,21 @@ make contracts   # contracts/openapi.json
 make purge       # 만료·폐기 세션 삭제
 ```
 
+Windows 에서 실제 STT 를 쓸 때:
+
+1. Python 3.11 이상과 [uv](https://docs.astral.sh/uv/) 를 설치합니다.
+2. ffmpeg 를 설치하고 `ffmpeg` 가 PATH 에 있게 합니다. 예: `winget install Gyan.FFmpeg`. 다른 경로면 `.env` 의 `FFMPEG_BIN` 에 `ffmpeg.exe` 전체 경로를 넣습니다.
+3. `backend` 폴더에서 `.env.example` 을 `.env` 로 복사합니다.
+4. `GATEWAY_API_KEY` 에 학교 FactChat 키를 넣습니다. 키는 커밋하지 않습니다. `GATEWAY_BASE_URL` 은 `https://factchat.mindlogic-kr-api.com/v1/gateway` 입니다.
+5. `STT_PROVIDER=gateway` 로 바꿉니다. 기본 `mock` 은 키와 ffmpeg 없이 동작합니다. 모델은 `STT_MODEL=stt-async-v5` 이고 `stt-async-v6` 도 됩니다.
+6. Postgres 를 띄운 뒤 `uv run alembic upgrade head`, 이어서 `uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`.
+7. 키가 있을 때만 실호출하는 확인:
+
+```bash
+uv run python -m scripts.stt_smoke C:\path\to\clip.webm
+uv run python -m scripts.stt_smoke C:\path\to\clip.wav --model stt-async-v6
+```
+
 패키지 관리는 uv 입니다. 비밀번호 해시는 `pwdlib[argon2]` 의 `PasswordHash.recommended()` (argon2id) 입니다.
 
 ## 환경변수
@@ -51,9 +66,15 @@ make purge       # 만료·폐기 세션 삭제
 | `REFRESH_REUSE_GRACE_SECONDS` | 회전 직후 중복 요청을 세션 폐기 없이 401 만 내는 시간. 기본 10초 |
 | `REFRESH_COOKIE_*` | HttpOnly 쿠키. `Secure` 를 비우면 dev 가 아닐 때 켭니다. |
 | `SEED_*_PASSWORD` | 데모 계정 비밀번호. 코드에 넣지 않습니다. |
-| `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` | 서버 내부용 키 하나. Claude, GPT, Jev, 게이트웨이 STT 가 같이 씁니다. 응답과 프론트에 넣지 않습니다. |
+| `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` | 서버 내부용 키 하나. 기본 주소는 고려대 FactChat. Claude, GPT, Jev, STT 가 같이 씁니다. 응답과 프론트에 넣지 않습니다. |
+| `GATEWAY_TIMEOUT_SECONDS`, `GATEWAY_MAX_RETRIES` | HTTP 타임아웃과 5xx·429 재시도. `Retry-After` 가 있으면 그 시간을 따릅니다. |
 | `CLAUDE_MODEL`, `JEV_MODEL_VERSION` | TODO. `latest` 는 거부합니다. |
 | `STT_PROVIDER` | `mock`, `gateway` |
+| `STT_MODEL` | `stt-async-v5`(기본), `stt-async-v6` |
+| `STT_LANGUAGE`, `STT_DIARIZATION` | 언어 힌트와 화자 분리. 용어 힌트 필드는 없습니다. |
+| `STT_POLL_INTERVAL_SECONDS`, `STT_POLL_TIMEOUT_SECONDS` | 비동기 STT 폴링. 기본 2초, 최대 300초. |
+| `STT_MAX_AUDIO_MB` | 게이트웨이 본문 한도. 기본 25. wav 가 넘으면 mp3 로 줄입니다. |
+| `FFMPEG_BIN` | 변환에 쓸 ffmpeg. 기본 `ffmpeg`. |
 | `EXTRACTOR_PROVIDER` | `mock`, `gateway_claude` |
 | `CLASSIFIER_PROVIDER` | `mock`, `gateway_jev` |
 | `CLS_CONF_HIGH`, `CLS_CONF_LOW`, `STT_CONF_MIN` | 임시 임계값. tune 데이터로 보정 후 확정 |
@@ -71,7 +92,7 @@ HTTP (app/api)
   → 테이블 (app/models) / 프론트 계약 (app/schemas)
 ```
 
-녹음 업로드(`POST /api/recordings`)만 예외적으로 길어집니다. 요청 한 번 안에서 파일을 디스크에 저장한 뒤 파이프라인을 끝까지 돌립니다. 큐는 없습니다. 허용 형식은 wav, mp3, m4a, webm, ogg 이고, 형식 오류(422)·크기 초과(413)·파이프라인 실패(503) 때는 저장한 파일을 지웁니다.
+녹음 업로드(`POST /api/recordings`)만 예외적으로 길어집니다. 요청 한 번 안에서 파일을 디스크에 저장한 뒤 파이프라인을 끝까지 돌립니다. 큐는 없습니다. 허용 형식은 wav, mp3, m4a, webm, ogg 이고, 형식 오류(422)·크기 초과(413)·파이프라인 실패(503) 때는 저장한 파일을 지웁니다. `STT_PROVIDER=gateway` 일 때는 저장한 원본은 그대로 두고, 호출 전에 ffmpeg 로 16kHz mono wav 를 만들어 보냅니다. webm 은 게이트웨이가 거절합니다.
 
 ```
 파일 저장 → STT → 용어 사전 치환 → 사실 추출 → 분류 → 근거·신뢰도 검증 → issue(draft)
@@ -97,8 +118,8 @@ backend/
   app/schemas/             # Pydantic = OpenAPI 계약. 바꾸면 프론트에 영향
   app/models/entities.py   # SQLAlchemy 테이블
   app/adapters/
-    gateway/client.py      # 공통 HTTP 클라이언트. 호출 형식은 아직 TODO
-    stt/                   # mock | gateway
+    gateway/client.py      # 공통 HTTP 클라이언트. 타임아웃, 5xx/429 재시도
+    stt/                   # mock | gateway. webm 등은 wav 로 바꾼 뒤 비동기 STT
     extractor/             # mock | gateway_claude. 요약 문장도 여기
     classifier/            # mock | gateway_jev
   app/services/
@@ -208,20 +229,26 @@ HTTPS 인증서와 리버스 프록시는 앱 밖에 둡니다. 로컬 개발 �
 - STT: 용어 힌트 지원, 그다음 소음 환경 정확도, 단어 신뢰도·타임스탬프, 지연, 비용
 - 분류(Jev): 보기별 확률·신뢰도, 신뢰도 보정 상태, 버전을 고정할 수 있는지
 
-## 게이트웨이 연동 TODO
+## 게이트웨이 연동
 
-엔드포인트, 인증 헤더, 필드명은 아직 정하지 않았습니다. `app/adapters/gateway/client.py` 는 골격만 있습니다. 정하기 전에 확인할 것:
+STT 는 학교 FactChat 게이트웨이의 비동기 받아쓰기를 사용합니다. 인증은 `Authorization: Bearer <GATEWAY_API_KEY>` 입니다.
 
-- base URL
-- 인증 방식(헤더 이름, 키 위치). 키는 Claude, GPT, Jev, 게이트웨이 STT 가 하나
-- Claude 호출 형식과 JSON schema 강제 방법
-- GPT 호출 형식. 같은 키를 쓰며, 사실 추출 경로에는 아직 연결하지 않음
-- Jev 호출 형식(Choice, Score, Noul)과 모델 버전 이름
-- STT 호출 형식, 용어 힌트, 단어 신뢰도, 타임스탬프
-- 모델명
-- 요금과 호출 한도
+- `POST audio/transcriptions/` (`multipart/form-data`: `file`, `model`, `language_hints`, `enable_speaker_diarization`)
+- 200 은 `{operation_id, status: "processing", model, duration_seconds, credits_charged}` 입니다. `operation_id` 의 콜론은 인코딩하지 않고 폴링 경로에 붙입니다.
+- `GET audio/transcriptions/{operation_id}/` 를 `processing` 이 끝날 때까지 반복합니다. `completed` 는 `text` 와 `segments[{speaker, text, start_ms, end_ms}]` 이고, `failed` 는 `error` 입니다.
+- 세그먼트 밀리초를 단어 시각(초)으로 나눠 저장합니다. 단어 신뢰도와 용어 힌트 필드는 없습니다. 언어 힌트만 `STT_LANGUAGE` 로 보냅니다.
+- 브라우저 webm 은 서버에서 16kHz mono wav 로 바꾼 뒤 보냅니다. wav 가 25MB 본문 한도를 넘으면 더 작은 mp3 로 다시 인코딩합니다.
+- 모델 기본값은 `stt-async-v5` 이고 `stt-async-v6` 도 설정할 수 있습니다.
 
-그 전까지 `STT_PROVIDER=mock`, `EXTRACTOR_PROVIDER=mock`, `CLASSIFIER_PROVIDER=mock` 으로 전체 흐름이 동작합니다.
+Claude 추출과 Jev 분류는 아직 `NotImplementedError` 입니다. 같은 클라이언트의 `post_json` 으로 `chat/completions/`, `decisions/` 를 호출할 수 있습니다.
+
+기본값은 `STT_PROVIDER=mock`, `EXTRACTOR_PROVIDER=mock`, `CLASSIFIER_PROVIDER=mock` 입니다. mock 은 외부 호출이 없습니다.
+
+키가 있을 때만 실호출하는 확인:
+
+```bash
+uv run python -m scripts.stt_smoke path/to/clip.webm
+```
 
 ## 인증
 
@@ -278,4 +305,4 @@ uv run python -m eval.hallucination --split tune
 
 ## 아직 정하지 않은 것
 
-taxonomy 8종은 임시안입니다. 1주차 멘토링 후 확정합니다. 분류 신뢰도 임계값과 STT 단어 신뢰도 임계값도 임시이며 tune 데이터로 다시 잡습니다. Claude 모델명, Jev 고정 버전, 게이트웨이 호출 형식은 설정과 TODO 로만 남겨 두었습니다. GPT 는 같은 게이트웨이 키를 쓰며 호출 경로는 아직 없습니다.
+taxonomy 8종은 임시안입니다. 1주차 멘토링 후 확정합니다. 분류 신뢰도 임계값과 STT 단어 신뢰도 임계값도 임시이며 tune 데이터로 다시 잡습니다. Claude 모델명과 Jev 고정 버전은 아직 TODO 입니다. STT 호출 형식은 학교 게이트웨이에서 확인했고, 추출·분류 호출은 아직 연결하지 않았습니다. GPT 는 같은 게이트웨이 키를 쓰며 호출 경로는 아직 없습니다.

@@ -39,12 +39,24 @@ class Settings(BaseSettings):
     seed_operator3_username: str = "operator3"
 
     # Claude, GPT, Jev, 게이트웨이 STT 가 같은 키를 쓴다.
-    gateway_base_url: str = ""
+    # 기본 주소는 고려대 FactChat. 공개 factchat-cloud 호스트가 아니다.
+    gateway_base_url: str = "https://factchat.mindlogic-kr-api.com/v1/gateway"
     gateway_api_key: str = ""
+    gateway_timeout_seconds: float = 120
+    gateway_max_retries: int = 3
+    gateway_retry_backoff_seconds: float = 0.5
     claude_model: str = ""
     jev_model_version: str = ""
 
     stt_provider: Literal["mock", "gateway"] = "mock"
+    # 학교 게이트웨이에서 v5·v6 를 확인했다. 같은 클립에서 전사가 같았고 기본은 v5.
+    stt_model: Literal["stt-async-v5", "stt-async-v6"] = "stt-async-v5"
+    stt_language: str = "ko"
+    stt_diarization: bool = True
+    stt_poll_interval_seconds: float = 2
+    stt_poll_timeout_seconds: float = 300
+    stt_max_audio_mb: int = 25
+    ffmpeg_bin: str = "ffmpeg"
     extractor_provider: Literal["mock", "gateway_claude"] = "mock"
     classifier_provider: Literal["mock", "gateway_jev"] = "mock"
 
@@ -91,6 +103,10 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
+
+    @property
+    def stt_max_audio_bytes(self) -> int:
+        return self.stt_max_audio_mb * 1024 * 1024
 
     @property
     def access_token_expires_in(self) -> int:
