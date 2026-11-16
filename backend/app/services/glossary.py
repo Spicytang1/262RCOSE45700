@@ -7,9 +7,16 @@ import yaml
 from pydantic import BaseModel
 
 
+class GlossaryReplacement(BaseModel):
+    source: str
+    target: str
+    requires_any: list[str] = []
+    requires_none: list[str] = []
+
+
 class Glossary(BaseModel):
     terms: list[str]
-    replacements: list[tuple[str, str]]
+    replacements: list[GlossaryReplacement]
     fuzzy_threshold: float = 0.84
 
 
@@ -20,8 +27,16 @@ def glossary_path() -> Path:
 @lru_cache
 def load_glossary() -> Glossary:
     raw = yaml.safe_load(glossary_path().read_text(encoding="utf-8"))
-    pairs = [(item["from"], item["to"]) for item in raw["replacements"]]
-    pairs.sort(key=lambda item: len(item[0]), reverse=True)
+    pairs = [
+        GlossaryReplacement(
+            source=item["from"],
+            target=item["to"],
+            requires_any=list(item.get("requires_any") or []),
+            requires_none=list(item.get("requires_none") or []),
+        )
+        for item in raw["replacements"]
+    ]
+    pairs.sort(key=lambda item: len(item.source), reverse=True)
     threshold = float(raw.get("fuzzy_threshold", 0.84))
     return Glossary(terms=list(raw["terms"]), replacements=pairs, fuzzy_threshold=threshold)
 
@@ -73,9 +88,32 @@ def _edit_distance(left: str, right: str) -> int:
 def apply_exact(text: str, glossary: Glossary | None = None) -> str:
     spec = glossary or load_glossary()
     corrected = text
-    for source, target in spec.replacements:
-        corrected = corrected.replace(source, target)
+    for rule in spec.replacements:
+        corrected = _replace_with_context(corrected, rule)
     return corrected
+
+
+def _replace_with_context(text: str, rule: GlossaryReplacement) -> str:
+    if any(token and token in text for token in rule.requires_none):
+        return text
+    start = 0
+    while True:
+        index = text.find(rule.source, start)
+        if index < 0:
+            return text
+        end = index + len(rule.source)
+        if _context_allows(text, index, end, rule):
+            text = text[:index] + rule.target + text[end:]
+            start = index + len(rule.target)
+        else:
+            start = end
+
+
+def _context_allows(text: str, start: int, end: int, rule: GlossaryReplacement) -> bool:
+    if not rule.requires_any:
+        return True
+    window = text[max(0, start - 40) : end + 40]
+    return any(token in window for token in rule.requires_any)
 
 
 def apply_fuzzy(text: str, glossary: Glossary | None = None) -> str:

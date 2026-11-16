@@ -12,6 +12,7 @@ from app.adapters.gateway.errors import GatewayError
 from app.config import Settings
 
 from eval.augment_noise import DATASET, load_eval_config
+from eval.common import select_scripts
 
 SPEECH_PATH = "audio/speech/"
 
@@ -68,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--voices", default=",".join(config["voices"]))
     parser.add_argument("--model", default=str(config["model"]))
     parser.add_argument("--output-dir", type=Path, default=DATASET / "audio" / "tts")
+    parser.add_argument("--ids", default=None, help="쉼표로 구분한 대본 id. 예: s01,s36")
+    parser.add_argument("--limit", type=int, default=None, help="앞에서부터 N개만")
     args = parser.parse_args(argv)
     settings = Settings()
     if not settings.gateway_api_key.strip():
@@ -75,10 +78,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     ground = json.loads((DATASET / "ground_truth.json").read_text(encoding="utf-8"))
     voices = [item.strip() for item in args.voices.split(",") if item.strip()]
+    scripts = select_scripts(list(ground["scripts"]), args.ids, args.limit)
     try:
         created, skipped = synthesize_scripts(
             GatewayClient.from_settings(settings),
-            list(ground["scripts"]),
+            scripts,
             args.output_dir,
             model=args.model,
             voices=voices,

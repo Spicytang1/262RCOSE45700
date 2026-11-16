@@ -306,8 +306,8 @@ SEED_OPERATOR1_PASSWORD='...' uv run python -m scripts.create_user \
 cd backend
 uv sync --group dev
 uv run python -m eval.augment_noise --snr 20,10,5
-uv run python -m eval.synthesize_speech --voices Kore
-uv run python -m eval.run_eval --dry-run
+uv run python -m eval.synthesize_speech --voices Kore --ids s01,s36 --limit 2
+uv run python -m eval.run_eval --dry-run --ids s01,s36
 uv run python -m eval.run_eval --conditions original,tts,noise_20dB,noise_10dB,noise_5dB,car
 uv run python -m eval.compare_stt --source dataset --providers gateway
 uv run python -m eval.compare_stt --source split --split tune

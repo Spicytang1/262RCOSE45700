@@ -12,6 +12,20 @@ def data_root() -> Path:
     return backend_root() / "data"
 
 
+def select_scripts(
+    scripts: list[dict[str, object]],
+    ids: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, object]]:
+    chosen = list(scripts)
+    if ids:
+        wanted = {item.strip() for item in ids.split(",") if item.strip()}
+        chosen = [item for item in chosen if str(item["id"]) in wanted]
+    if limit is not None:
+        chosen = chosen[: max(limit, 0)]
+    return chosen
+
+
 def load_items(split: str, condition: str | None = None) -> list[dict[str, object]]:
     root = data_root()
     splits = json.loads((root / "splits.json").read_text(encoding="utf-8"))

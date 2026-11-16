@@ -9,7 +9,7 @@ import numpy as np
 from app.adapters.gateway.client import GatewayClient
 from app.services.glossary import Glossary, apply_fuzzy, correct_text, jamo_similarity
 from eval.augment_noise import measured_snr_db, mix_at_snr, synthetic_cabin_noise
-from eval.common import load_items
+from eval.common import load_items, select_scripts
 from eval.compare_stt import evaluate_split
 from eval.metrics import macro_f1
 from eval.run_eval import CreditRates, audio_for, estimate_credits, load_scripts, plan_condition, render_report
@@ -23,6 +23,17 @@ RATES = CreditRates(
     classify_per_call=0.1,
     assumed_audio_seconds=12,
 )
+
+
+def test_cut_in_mishearings_need_driving_context() -> None:
+    driving = correct_text("왼쪽에서 검은 차가 코딩해서 끼어들었어요.")
+    assert "컷인해서" in driving
+    assert "코딩해서" not in driving
+    plain = correct_text("파이썬으로 코딩해서 앱을 만들었어요.")
+    assert "코딩해서" in plain
+    assert "컷인" not in plain
+    heard = correct_text("승용차가 코린에서 앞으로 들어왔다.")
+    assert "컷인해서" in heard
 
 
 def test_glossary_exact_and_conservative_fuzzy() -> None:
@@ -142,6 +153,56 @@ def test_macro_f1_and_report() -> None:
     report = render_report({"original": {"cer": 0.1, "wer": 0.2, "term_recall_after": 0.9}}, {"cer_max": 0.35})
     assert "original" in report
     assert "0.100" in report
+
+
+def test_ids_filter_limits_scripts_and_dry_run() -> None:
+    scripts = [{"id": "s01", "script": "가"}, {"id": "s02", "script": "나"}, {"id": "s36", "script": "다"}]
+    assert [item["id"] for item in select_scripts(scripts, "s36,s01", None)] == ["s01", "s36"]
+    assert [item["id"] for item in select_scripts(scripts, None, 1)] == ["s01"]
+
+
+def test_report_shows_pass_fail_and_small_sample_note() -> None:
+    matrix = {"cut_in": {"cut_in": 1, "None": 0}, "None": {"cut_in": 0, "None": 0}}
+    summary = {
+        "n": 1,
+        "cer": 0.1,
+        "wer": 0.2,
+        "term_recall_after": 0.9,
+        "event_type_macro_f1": 1.0,
+        "field_accuracy": 1.0,
+        "location_accuracy": 1.0,
+        "mentioned_time_accuracy": 1.0,
+        "mentioned_time_resolved_accuracy": 1.0,
+        "hallucination": 0.0,
+        "event_type_confusion": matrix,
+        "pass": {"cer_max": True, "event_type_macro_f1_min": False},
+    }
+    report = render_report({"original": summary}, {"cer_max": 0.35, "event_type_macro_f1_min": 0.6})
+    assert "통과" in report
+    assert "실패" in report
+    assert "장소" in report
+    assert "해석 시각" in report
+    assert "혼동 행렬" in report
+    assert "1건" in report
+
+
+def test_resolved_time_scores_against_gold() -> None:
+    from eval.run_eval import score_sample
+
+    script = {
+        "id": "s02",
+        "script": "방금 30초 전에 합류 구간에서 끼어들었어요.",
+        "expected": {"relative_time": "30초 전", "location": "합류 구간", "issue_type": {"key": "cut_in"}},
+    }
+    record = {
+        "raw_text": script["script"],
+        "corrected_text": script["script"],
+        "location": "합류 구간",
+        "mentioned_time": "30초 전",
+        "event_type": "cut_in",
+    }
+    scored = score_sample(script, record, ["컷인"])
+    assert scored["mentioned_time_resolved_correct"] is True
 
 
 def test_dataset_has_forty_scripts_and_compare_uses_text_split() -> None:

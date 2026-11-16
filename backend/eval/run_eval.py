@@ -9,6 +9,7 @@ import argparse
 import csv
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -19,9 +20,11 @@ from app.config import Settings
 from app.domain.taxonomy.loader import load_taxonomy
 from app.domain.taxonomy.questions import build_questions
 from app.services.glossary import correct_text, glossary_path, load_glossary
+from app.services.mentioned_time import resolve_mentioned_time
 from app.services.state_text import build_state_text
 
 from eval.augment_noise import DATASET
+from eval.common import select_scripts
 from eval.metrics import (
     classification_accuracy,
     confusion_matrix,
@@ -224,6 +227,7 @@ def score_sample(script: dict[str, object], record: dict[str, object], terms: li
     time_gold = None if time_gold is None else str(time_gold)
     location_ok = extraction_match(location_gold, _optional_str(record.get("location")))
     time_ok = extraction_match(time_gold, _optional_str(record.get("mentioned_time")))
+    resolved_ok = _resolved_time_correct(expected, corrected, _optional_str(record.get("mentioned_time")))
     cause_ok = None if "cause" not in expected else extraction_match(cause_gold, _optional_str(record.get("cause")))
     if not location_ok:
         errors.append(_error(script, "location", location_gold, record.get("location")))
@@ -240,6 +244,7 @@ def score_sample(script: dict[str, object], record: dict[str, object], terms: li
         "fields": fields,
         "location_correct": location_ok,
         "mentioned_time_correct": time_ok,
+        "mentioned_time_resolved_correct": resolved_ok,
         "cause_correct": cause_ok,
         "hallucination": record.get("hallucination"),
         "errors": errors,
@@ -247,24 +252,65 @@ def score_sample(script: dict[str, object], record: dict[str, object], terms: li
 
 
 def render_report(condition_rows: dict[str, dict[str, object]], thresholds: dict[str, float]) -> str:
-    header = "| 조건 | CER | WER | 용어 재현(보정 후) | 사건 유형 macro F1 | 필드 정확도 | 환각 |"
-    divider = "|---|---:|---:|---:|---:|---:|---:|"
+    header = (
+        "| 조건 | n | CER | WER | 용어 재현(보정 후) | 사건 유형 macro F1 | "
+        "필드 정확도 | 장소 | 상대 시각 | 해석 시각 | 환각 |"
+    )
+    divider = "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     lines = ["# 음성 평가", "", header, divider]
     for condition, summary in condition_rows.items():
+        row = (
+            "| {condition} | {n} | {cer} | {wer} | {term} | {f1} | {field} | {loc} | {mention} | {resolved} | {hall} |"
+        )
         lines.append(
-            "| {condition} | {cer} | {wer} | {term} | {f1} | {field} | {hall} |".format(
+            row.format(
                 condition=condition,
+                n=summary.get("n", "n/a"),
                 cer=_fmt(summary.get("cer")),
                 wer=_fmt(summary.get("wer")),
                 term=_fmt(summary.get("term_recall_after")),
                 f1=_fmt(summary.get("event_type_macro_f1")),
                 field=_fmt(summary.get("field_accuracy")),
+                loc=_fmt(summary.get("location_accuracy")),
+                mention=_fmt(summary.get("mentioned_time_accuracy")),
+                resolved=_fmt(summary.get("mentioned_time_resolved_accuracy")),
                 hall=_fmt(summary.get("hallucination")),
             )
         )
-    lines.extend(["", "## 기준", ""])
+        sample_count = summary.get("n")
+        if isinstance(sample_count, int) and sample_count < 10:
+            lines.append("")
+            note = (
+                f"{condition}: 표본이 {sample_count}건이라 "
+                "사건 유형 macro F1 은 라벨이 비는 칸 때문에 낮게 보일 수 있습니다."
+            )
+            lines.append(note)
+    lines.extend(["", "## 기준 통과", ""])
+    for condition, summary in condition_rows.items():
+        verdicts = summary.get("pass")
+        if not isinstance(verdicts, dict):
+            verdicts = passes(summary, thresholds)
+        if not verdicts:
+            continue
+        for name, ok in verdicts.items():
+            lines.append(f"- {condition} {name}: {'통과' if ok else '실패'}")
+    lines.extend(["", "## 기준값", ""])
     for name, limit in thresholds.items():
         lines.append(f"- {name}: {limit}")
+    for condition, summary in condition_rows.items():
+        matrix = summary.get("event_type_confusion")
+        if not isinstance(matrix, dict) or not matrix:
+            continue
+        lines.extend(["", f"## 사건 유형 혼동 행렬 ({condition})", ""])
+        labels = list(matrix)
+        lines.append("| 정답\\\\예측 | " + " | ".join(labels) + " |")
+        lines.append("|---|" + "---:|" * len(labels))
+        for gold in labels:
+            row = matrix.get(gold)
+            if not isinstance(row, dict):
+                continue
+            cells = " | ".join(str(row.get(label, 0)) for label in labels)
+            lines.append(f"| {gold} | {cells} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -294,8 +340,10 @@ def summarize_condition(samples: list[dict[str, object]], labels: list[str]) -> 
         "event_type_confusion": confusion_matrix(event_golds, event_preds, labels),
         "field_accuracy": classification_accuracy(field_hits),
         "hallucination": _mean(hallucinations),
+        "n": len(samples),
         "location_accuracy": _ratio(samples, "location_correct"),
         "mentioned_time_accuracy": _ratio(samples, "mentioned_time_correct"),
+        "mentioned_time_resolved_accuracy": _ratio(samples, "mentioned_time_resolved_correct"),
         "cause_accuracy": _ratio(samples, "cause_correct"),
     }
 
@@ -364,6 +412,7 @@ def run_cached_pipeline(
         "cause": _nested_str(extraction_payload, "cause"),
         "location": _nested_str(extraction_payload, "location"),
         "mentioned_time": _nested_str(extraction_payload, "mentioned_time"),
+        "mentioned_time_resolved": _resolved_payload(corrected, _nested_str(extraction_payload, "mentioned_time")),
         "hallucination": hallucination_rate(evidence_fields, transcript),
     }
     record.update(classification_payload)
@@ -378,9 +427,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--audio-dir", type=Path, default=DATASET / "audio")
     parser.add_argument("--cache-dir", type=Path, default=DATASET / "cache")
     parser.add_argument("--report-dir", type=Path, default=DATASET / "reports")
+    parser.add_argument("--ids", default=None, help="쉼표로 구분한 대본 id. 예: s01,s36")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
-    scripts = load_scripts()
+    scripts = select_scripts(load_scripts(), args.ids, None)
     settings = Settings()
     conditions = [item.strip() for item in args.conditions.split(",") if item.strip()]
     plans = []
@@ -550,6 +600,50 @@ def _nested_evidence(payload: dict[str, object], name: str) -> str | None:
 
 def _optional_str(value: object) -> str | None:
     return str(value) if isinstance(value, str) else None
+
+
+_EVAL_ANCHOR = datetime(2026, 1, 1)
+
+
+def _resolved_payload(transcript: str, mention: str | None) -> dict[str, object] | None:
+    resolved = resolve_mentioned_time(transcript, mention=mention, words=None, recorded_at=_EVAL_ANCHOR)
+    if resolved is None:
+        return None
+    return {"expression": resolved.expression, "offset_seconds": resolved.offset_seconds}
+
+
+def _gold_time_expressions(expected: dict[str, object]) -> list[str]:
+    found: list[str] = []
+    primary = expected.get("relative_time")
+    if isinstance(primary, str) and primary.strip():
+        found.append(primary)
+    secondary = expected.get("secondary_events")
+    if isinstance(secondary, list):
+        for item in secondary:
+            if isinstance(item, dict) and isinstance(item.get("relative_time"), str):
+                found.append(str(item["relative_time"]))
+    return found
+
+
+def _resolved_time_correct(expected: dict[str, object], transcript: str, mention: str | None) -> bool | None:
+    golds = _gold_time_expressions(expected)
+    actual = resolve_mentioned_time(transcript, mention=mention, words=None, recorded_at=_EVAL_ANCHOR)
+    if not golds:
+        return actual is None
+    targets = []
+    for expression in golds:
+        resolved = resolve_mentioned_time(expression, mention=None, words=None, recorded_at=_EVAL_ANCHOR)
+        if resolved is not None:
+            targets.append(resolved)
+    if actual is None or not targets:
+        return False
+    target = min(targets, key=lambda item: (0 if _looks_numeric(item.expression) else 1, item.uncertainty_seconds))
+    return abs(actual.offset_seconds - target.offset_seconds) < 0.1
+
+
+def _looks_numeric(expression: str) -> bool:
+    markers = "0123456789일이삼사오육칠팔구십"
+    return any(char in markers for char in expression)
 
 
 def _error(script: dict[str, object], field: str, expected: str | None, actual: object) -> dict[str, str]:

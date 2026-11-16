@@ -32,6 +32,7 @@ class _Match(BaseModel):
     start: int
     offset_seconds: float
     uncertainty_seconds: float
+    specific: bool = False
 
 
 def time_windows_path() -> Path:
@@ -121,14 +122,16 @@ def _under_hundred(text: str) -> int | None:
 
 
 def _choose_match(transcript: str, mention: str | None, windows: TimeWindows) -> _Match | None:
+    matches = _find_matches(transcript, windows)
+    if not matches and mention:
+        matches = _find_matches(mention, windows)
     if mention:
-        found = _earliest(_find_matches(mention, windows))
-        if found is not None:
-            start = transcript.find(found.expression)
-            if start >= 0:
-                return found.model_copy(update={"start": start})
-            return found
-    return _earliest(_find_matches(transcript, windows))
+        focused = [item for item in matches if item.expression in mention or mention in item.expression]
+        focused_specific = any(item.specific for item in focused)
+        any_specific = any(item.specific for item in matches)
+        if focused and (focused_specific or not any_specific):
+            matches = focused
+    return _prefer_specific(matches)
 
 
 def _find_matches(text: str, windows: TimeWindows) -> list[_Match]:
@@ -143,6 +146,7 @@ def _find_matches(text: str, windows: TimeWindows) -> list[_Match]:
                     start=found.start(),
                     offset_seconds=spec.offset_seconds,
                     uncertainty_seconds=spec.uncertainty_seconds,
+                    specific=False,
                 )
             )
     for found in _NUMERIC.finditer(text):
@@ -156,15 +160,16 @@ def _find_matches(text: str, windows: TimeWindows) -> list[_Match]:
                 start=found.start(),
                 offset_seconds=number * unit.offset_seconds,
                 uncertainty_seconds=unit.uncertainty_seconds,
+                specific=True,
             )
         )
     return matches
 
 
-def _earliest(matches: list[_Match]) -> _Match | None:
+def _prefer_specific(matches: list[_Match]) -> _Match | None:
     if not matches:
         return None
-    return min(matches, key=lambda item: item.start)
+    return min(matches, key=lambda item: (0 if item.specific else 1, item.start))
 
 
 def _word_start_at(transcript: str, words: list[WordToken], char_index: int) -> float | None:

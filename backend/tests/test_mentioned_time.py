@@ -67,5 +67,15 @@ def test_mention_prefers_its_own_expression() -> None:
     assert resolved.offset_seconds == 10
 
 
+def test_numeric_offset_beats_a_vague_word() -> None:
+    resolved = _resolve("방금 30초 전에 끼어들었다")
+    assert resolved is not None
+    assert resolved.offset_seconds == 30
+    assert "30" in resolved.expression
+    preferred = _resolve("방금 불법주정차를 피했고 십 초 전에 신호가 늦었다", mention="방금")
+    assert preferred is not None
+    assert preferred.offset_seconds == 10
+
+
 def test_missing_expression_is_null() -> None:
     assert _resolve("교차로에서 좌회전했다") is None
