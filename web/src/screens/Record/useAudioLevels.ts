@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const BAR_COUNT = 40; // 화면에 보일 막대 수
-const INTERVAL_MS = 80; // 몇 ms마다 한 번 측정할지
+export const INTERVAL_MS = 80; // 몇 ms마다 한 번 측정할지 (Record의 무음 계산에도 사용)
 const EMPTY_LEVELS = Array<number>(BAR_COUNT).fill(0);
 
 /** 마이크 stream을 받아 "시간순 소리 크기 배열"(0~1)을 돌려주는 훅 */
