@@ -298,6 +298,31 @@ SEED_OPERATOR1_PASSWORD='...' uv run python -m scripts.create_user \
 4. 음성 재생은 `<audio src>` 에 토큰을 붙이지 않습니다. `GET /api/issues/{id}/audio` 를 Authorization 헤더로 fetch 하고 blob URL 로 재생합니다.
 5. 허용 origin 은 `http://localhost:5173` 입니다. 쿠키를 쓰므로 origin 와일드카드는 쓰지 않습니다.
 
+## 평가 세트 (Windows)
+
+음성 파일은 커밋하지 않습니다. `backend/eval/dataset/audio/` 에 `s01.m4a` … `s40.m4a` 를 넣습니다. 차 안 녹음은 `s01_car.m4a` 처럼 `_car` 를 붙입니다. ffmpeg 가 PATH 에 있어야 하고, 없으면 `FFMPEG_BIN` 에 `ffmpeg.exe` 전체 경로를 넣습니다.
+
+```powershell
+cd backend
+uv sync --group dev
+uv run python -m eval.augment_noise --snr 20,10,5
+uv run python -m eval.synthesize_speech --voices Kore
+uv run python -m eval.run_eval --dry-run
+uv run python -m eval.run_eval --conditions original,tts,noise_20dB,noise_10dB,noise_5dB,car
+uv run python -m eval.compare_stt --source dataset --providers gateway
+uv run python -m eval.compare_stt --source split --split tune
+```
+
+`synthesize_speech` 와 실제 파이프라인 평가는 `GATEWAY_API_KEY` 가 있을 때만 게이트웨이를 호출합니다. `--dry-run` 은 캐시에 없는 호출만 세어 대략의 크레딧을 보여 주고 요청하지 않습니다. 같은 단계의 지문이 같으면 STT·추출·분류를 다시 호출하지 않으므로, 질문 문구만 바꾼 뒤에는 분류 단계만 다시 돕니다.
+
+사람이 바꿀 파일:
+
+- `eval/dataset/thresholds.yaml` 통과 기준과 크레딧 단가
+- `eval/dataset/eval_config.yaml` TTS 모델·목소리·SNR
+- `app/domain/time_windows.yaml` 방금·조금 전·아까 의 오프셋과 불확실 구간
+- `app/domain/glossary.yaml` 용어·오인식·`fuzzy_threshold`
+- `app/domain/taxonomy/v1.yaml` 과 `app/domain/jev_questions.yaml` 보기와 질문 문구
+
 ## 데이터와 평가
 
 `data/splits.json` 의 비율은 임의 값입니다. 확보량에 맞춰 조정합니다. `tune` 은 개발, `test` 는 고정 평가, `demo` 는 시연용입니다. `test` 는 튜닝에 쓰지 않습니다. 코드로 막아 두지는 않았으니, 평가 스크립트(`eval/`)에서만 `--split test` 로 읽습니다.

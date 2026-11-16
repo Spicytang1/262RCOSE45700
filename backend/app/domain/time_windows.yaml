@@ -1,0 +1,19 @@
+# 상대 시각을 녹음 시작(또는 그 말이 나온 구간)에서 얼마나 뺄지.
+# 숫자+초/분 은 units 를 쓰고, 애매한 말은 phrases 를 쓴다. 값은 자리표시다.
+phrases:
+  조금 전:
+    offset_seconds: 90
+    uncertainty_seconds: 120
+  방금:
+    offset_seconds: 5
+    uncertainty_seconds: 30
+  아까:
+    offset_seconds: 600
+    uncertainty_seconds: 600
+units:
+  초:
+    multiplier: 1
+    uncertainty_seconds: 5
+  분:
+    multiplier: 60
+    uncertainty_seconds: 20

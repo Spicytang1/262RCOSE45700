@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,6 +27,18 @@ def empty_classified() -> Classified[str]:
     return Classified[str]()
 
 
+class ResolvedMentionedTime(BaseModel):
+    """상대 표현을 녹음 시각에서 되돌린 추정 시각. 없는 녹음은 null."""
+
+    expression: str
+    offset_seconds: float
+    uncertainty_seconds: float
+    anchor: str
+    estimated_at: datetime
+    window_start: datetime
+    window_end: datetime
+
+
 class IssueExtraction(BaseModel):
     cause: Evidenced[str]
     location: Evidenced[str]
@@ -36,6 +49,7 @@ class IssueExtraction(BaseModel):
     ego_action_before: Classified[str] = Field(default_factory=empty_classified)
     target_type: Classified[str] = Field(default_factory=empty_classified)
     ego_reaction: Classified[str] = Field(default_factory=empty_classified)
+    mentioned_time_resolved: ResolvedMentionedTime | None = None
 
     model_config = ConfigDict(
         json_schema_extra={
