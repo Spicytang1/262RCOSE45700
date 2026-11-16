@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import OPERATOR_PASSWORD, auth_header, login, upload, wav_bytes
+from tests.conftest import OPERATOR_PASSWORD, auth_header, build_test_settings, login, upload, wav_bytes
 
 
 def _token(client: TestClient) -> str:
@@ -49,6 +49,7 @@ def test_empty_upload_is_rejected_and_removed(client: TestClient, app) -> None:
 
 def test_failed_extraction_keeps_audio_and_marks_error(client: TestClient, app) -> None:
     app.state.settings.extractor_provider = "gateway_claude"
+    app.state.settings.classifier_provider = "gateway_jev"
     app.state.settings.gateway_api_key = ""
     response = upload(client, _token(client))
     assert response.status_code == 200, response.text
@@ -56,7 +57,10 @@ def test_failed_extraction_keeps_audio_and_marks_error(client: TestClient, app) 
     assert body["status"] == "error"
     assert body["transcript"]["corrected_text"]
     assert body["extraction"]["cause"]["value"] is None
+    assert body["extraction"]["event_type"]["value"] is None
+    assert body["extraction"]["severity"]["value"] is None
     assert "extraction" in body["pipeline_meta"]["errors"]
+    assert "classification" not in body["pipeline_meta"]["errors"]
     assert len(_stored_files(app)) == 1
 
 
@@ -71,6 +75,16 @@ def test_failed_classification_keeps_transcript(client: TestClient, app) -> None
     assert body["extraction"]["cause"]["value"]
     assert "classification" in body["pipeline_meta"]["errors"]
     assert len(_stored_files(app)) == 1
+
+
+def test_settings_override_provider_env(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("STT_PROVIDER", "gateway")
+    monkeypatch.setenv("EXTRACTOR_PROVIDER", "gateway_claude")
+    monkeypatch.setenv("CLASSIFIER_PROVIDER", "gateway_jev")
+    configured = build_test_settings(tmp_path)
+    assert configured.stt_provider == "mock"
+    assert configured.extractor_provider == "mock"
+    assert configured.classifier_provider == "mock"
 
 
 def test_valid_upload_keeps_audio(client: TestClient, app) -> None:

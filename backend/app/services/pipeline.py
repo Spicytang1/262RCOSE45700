@@ -110,12 +110,14 @@ def _run(
     except (GatewayError, ExtractionFailed) as exc:
         step_errors["extraction"] = str(exc)[:500]
         extracted = Extraction(cause=TextFact(), location=TextFact(), mentioned_time=TextFact())
-    state_text = build_state_text(corrected, extracted.cause.value, extracted.location.value)
-    try:
-        classified = get_classifier(settings).classify(state_text, build_questions(taxonomy))
-    except (GatewayError, ClassificationFailed) as exc:
-        step_errors["classification"] = str(exc)[:500]
         classified = ClassificationResult(answers=[])
+    else:
+        state_text = build_state_text(corrected, extracted.cause.value, extracted.location.value)
+        try:
+            classified = get_classifier(settings).classify(state_text, build_questions(taxonomy))
+        except (GatewayError, ClassificationFailed) as exc:
+            step_errors["classification"] = str(exc)[:500]
+            classified = ClassificationResult(answers=[])
     words = [word.model_copy() for word in transcript.words]
 
     cause = verify_evidence(_as_evidenced(extracted.cause.value, extracted.cause.evidence), corrected)
