@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Login from "@/screens/Login/Login";
 import Standby from "@/screens/Standby/Standby";
-import Record from "@/screens/Record/Record";
+import Record, { type FinishReason } from "@/screens/Record/Record";
 // import Review from "@/screens/Review/Review";
 import Button from "@/components/Button";
 import { endSession, getSessions, saveRecording, startSession } from "@/lib/recordingStore";
@@ -39,6 +39,8 @@ export default function App() {
   const [saveError, setSaveError] = useState(false);
   const savingRef = useRef(false);
   const startedAt = useRef("");
+  // 녹음이 끝난 이유(수동/무음 자동 종료). 보관 재시도에서도 안내 문구를 유지하기 위해 ref에 둔다.
+  const finishReasonRef = useRef<FinishReason>("manual");
   const locationRequest = useRef<{ controller: AbortController; result: Promise<RecordingLocation> } | null>(null);
   const [audioClips, setAudioClips] = useState<AudioClip[]>([]);
   const [drivePermissions, setDrivePermissions] = useState<DrivePermissions | null>(null);
@@ -149,13 +151,14 @@ export default function App() {
     setAudioClips([]);
   }
 
-  function handleFinish(blob: Blob, durationSec: number) {
+  function handleFinish(blob: Blob, durationSec: number, reason: FinishReason) {
     if (supervisorId === null || !activeSession) return;
     const recording: StoredRecording = {
       id: crypto.randomUUID(), supervisorId, audio: blob,
       recordedAt: startedAt.current || new Date().toISOString(), durationSec,
       sessionId: activeSession.id,
     };
+    finishReasonRef.current = reason;
     setPending(recording);
     void commitRecording(recording);
   }
@@ -177,7 +180,9 @@ export default function App() {
       await data.reload();
       locationRequest.current = null;
       setPending(null);
-      setNotice("녹음을 보관했어요. 주행 감독에 집중해 주세요.");
+      setNotice(finishReasonRef.current === "silence"
+        ? "무음이 4초 이어져 녹음을 자동으로 끝냈어요. 녹음은 보관했어요."
+        : "녹음을 보관했어요. 주행 감독에 집중해 주세요.");
       setScreen("standby");
     } catch {
       setSaveError(true);
@@ -235,7 +240,7 @@ export default function App() {
   }
 
   //추가녹음 화면 (미사용)
-  /* 
+  /*
   if (screen === "addRecord") {
     return <Record onFinish={handleAddFinish} onCancel={() => setScreen("review")} />;
   }
