@@ -7,9 +7,12 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.adapters.audio import AudioNormalizeError
-from app.adapters.classifier.base import ChoiceAnswer, ScoreAnswer
+from app.adapters.classifier.base import ChoiceAnswer, ClassificationResult, ScoreAnswer
 from app.adapters.classifier.factory import get_classifier
+from app.adapters.classifier.gateway_jev import ClassificationFailed
+from app.adapters.extractor.base import Extraction, TextFact
 from app.adapters.extractor.factory import get_extractor
+from app.adapters.extractor.gateway_claude import ExtractionFailed
 from app.adapters.gateway.errors import GatewayError
 from app.adapters.stt.factory import get_stt_adapter
 from app.config import Settings
@@ -29,6 +32,23 @@ class ExternalCallError(Exception):
 
 def _as_evidenced(value: str | None, evidence: str | None) -> Evidenced[str]:
     return Evidenced[str](value=value, evidence=evidence)
+
+
+def _pipeline_meta(settings: Settings, stt_provider: str, taxonomy_version: str, step_errors: dict[str, str]) -> dict:
+    meta: dict[str, object] = {
+        "stt_provider": stt_provider,
+        "extractor_model": settings.extract_model.strip() or settings.claude_model.strip(),
+        "jev_model_version": settings.jev_model_version,
+        "taxonomy_version": taxonomy_version,
+        "thresholds": {
+            "cls_conf_high": settings.cls_conf_high,
+            "cls_conf_low": settings.cls_conf_low,
+            "stt_conf_min": settings.stt_conf_min,
+        },
+    }
+    if step_errors:
+        meta["errors"] = step_errors
+    return meta
 
 
 def run_pipeline(
@@ -84,9 +104,18 @@ def _run(
     transcript = stt.transcribe(audio_path, hints)
     corrected = correct_text(transcript.text, glossary)
     extractor = get_extractor(settings)
-    extracted = extractor.extract(corrected)
+    step_errors: dict[str, str] = {}
+    try:
+        extracted = extractor.extract(corrected)
+    except (GatewayError, ExtractionFailed) as exc:
+        step_errors["extraction"] = str(exc)[:500]
+        extracted = Extraction(cause=TextFact(), location=TextFact(), mentioned_time=TextFact())
     state_text = build_state_text(corrected, extracted.cause.value, extracted.location.value)
-    classified = get_classifier(settings).classify(state_text, build_questions(taxonomy))
+    try:
+        classified = get_classifier(settings).classify(state_text, build_questions(taxonomy))
+    except (GatewayError, ClassificationFailed) as exc:
+        step_errors["classification"] = str(exc)[:500]
+        classified = ClassificationResult(answers=[])
     words = [word.model_copy() for word in transcript.words]
 
     cause = verify_evidence(_as_evidenced(extracted.cause.value, extracted.cause.evidence), corrected)
@@ -162,18 +191,8 @@ def _run(
         recording_id=recording.id,
         ai_extraction=extraction.model_dump(mode="json"),
         final_extraction=None,
-        status="draft",
-        pipeline_meta={
-            "stt_provider": transcript.provider,
-            "extractor_model": settings.claude_model,
-            "jev_model_version": settings.jev_model_version,
-            "taxonomy_version": taxonomy.version,
-            "thresholds": {
-                "cls_conf_high": settings.cls_conf_high,
-                "cls_conf_low": settings.cls_conf_low,
-                "stt_conf_min": settings.stt_conf_min,
-            },
-        },
+        status="error" if step_errors else "draft",
+        pipeline_meta=_pipeline_meta(settings, transcript.provider, taxonomy.version, step_errors),
         vehicle_number=vehicle_number,
         occurred_on=occurred_on,
         autonomy_version=autonomy_version,

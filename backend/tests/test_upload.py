@@ -47,11 +47,30 @@ def test_empty_upload_is_rejected_and_removed(client: TestClient, app) -> None:
     assert _stored_files(app) == []
 
 
-def test_failed_pipeline_removes_stored_audio(client: TestClient, app) -> None:
+def test_failed_extraction_keeps_audio_and_marks_error(client: TestClient, app) -> None:
     app.state.settings.extractor_provider = "gateway_claude"
+    app.state.settings.gateway_api_key = ""
     response = upload(client, _token(client))
-    assert response.status_code == 503
-    assert _stored_files(app) == []
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "error"
+    assert body["transcript"]["corrected_text"]
+    assert body["extraction"]["cause"]["value"] is None
+    assert "extraction" in body["pipeline_meta"]["errors"]
+    assert len(_stored_files(app)) == 1
+
+
+def test_failed_classification_keeps_transcript(client: TestClient, app) -> None:
+    app.state.settings.classifier_provider = "gateway_jev"
+    app.state.settings.gateway_api_key = ""
+    response = upload(client, _token(client))
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "error"
+    assert "컷인" in body["transcript"]["corrected_text"]
+    assert body["extraction"]["cause"]["value"]
+    assert "classification" in body["pipeline_meta"]["errors"]
+    assert len(_stored_files(app)) == 1
 
 
 def test_valid_upload_keeps_audio(client: TestClient, app) -> None:

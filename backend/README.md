@@ -68,7 +68,8 @@ uv run python -m scripts.stt_smoke C:\path\to\clip.wav --model stt-async-v6
 | `SEED_*_PASSWORD` | 데모 계정 비밀번호. 코드에 넣지 않습니다. |
 | `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` | 서버 내부용 키 하나. 기본 주소는 고려대 FactChat. Claude, GPT, Jev, STT 가 같이 씁니다. 응답과 프론트에 넣지 않습니다. |
 | `GATEWAY_TIMEOUT_SECONDS`, `GATEWAY_MAX_RETRIES` | HTTP 타임아웃과 5xx·429 재시도. `Retry-After` 가 있으면 그 시간을 따릅니다. |
-| `CLAUDE_MODEL`, `JEV_MODEL_VERSION` | TODO. `latest` 는 거부합니다. |
+| `EXTRACT_MODEL` | 사실 추출 `chat/completions` 모델. 기본 `claude-opus-5-5`. 비우면 `CLAUDE_MODEL`. |
+| `JEV_MODEL_VERSION` | decisions 모델. 기본 `jev-1.14.0`. `latest` 는 거부합니다. |
 | `STT_PROVIDER` | `mock`, `gateway` |
 | `STT_MODEL` | `stt-async-v5`(기본), `stt-async-v6` |
 | `STT_LANGUAGE`, `STT_DIARIZATION` | 언어 힌트와 화자 분리. 용어 힌트 필드는 없습니다. |
@@ -240,9 +241,19 @@ STT 는 학교 FactChat 게이트웨이의 비동기 받아쓰기를 사용합�
 - 브라우저 webm 은 서버에서 16kHz mono wav 로 바꾼 뒤 보냅니다. wav 가 25MB 본문 한도를 넘으면 더 작은 mp3 로 다시 인코딩합니다.
 - 모델 기본값은 `stt-async-v5` 이고 `stt-async-v6` 도 설정할 수 있습니다.
 
-Claude 추출과 Jev 분류는 아직 `NotImplementedError` 입니다. 같은 클라이언트의 `post_json` 으로 `chat/completions/`, `decisions/` 를 호출할 수 있습니다.
+사실 추출은 `POST chat/completions/` 한 번입니다. `response_format.json_schema` 가 거절되면 프롬프트 JSON 으로 바꾸고, 스키마 검증 실패 시 수정을 한 번만 더 요청합니다. 전사에 없는 근거는 버립니다.
+
+분류는 `POST decisions/` 한 번입니다. 질문 문구는 `app/domain/jev_questions.yaml` 이고, 보기 키는 taxonomy 를 따릅니다. severity 도 choice 로 물어 파이프라인의 점수 인덱스로 바꿉니다.
+
+추출이나 분류가 실패하면 녹음과 전사는 남기고 이슈 상태를 `error` 로 둡니다. STT 실패는 기존처럼 503 이며 파일을 지웁니다.
 
 기본값은 `STT_PROVIDER=mock`, `EXTRACTOR_PROVIDER=mock`, `CLASSIFIER_PROVIDER=mock` 입니다. mock 은 외부 호출이 없습니다.
+
+전사문만으로 추출과 분류를 확인합니다. 키가 없으면 요청하지 않습니다.
+
+```bash
+uv run python -m scripts.stt_smoke --text "방금 교차로에서 직진하던 중에 검은 승용차가 컷인해서 급제동했습니다."
+```
 
 키가 있을 때만 실호출하는 확인:
 
@@ -305,4 +316,4 @@ uv run python -m eval.hallucination --split tune
 
 ## 아직 정하지 않은 것
 
-taxonomy 8종은 임시안입니다. 1주차 멘토링 후 확정합니다. 분류 신뢰도 임계값과 STT 단어 신뢰도 임계값도 임시이며 tune 데이터로 다시 잡습니다. Claude 모델명과 Jev 고정 버전은 아직 TODO 입니다. STT 호출 형식은 학교 게이트웨이에서 확인했고, 추출·분류 호출은 아직 연결하지 않았습니다. GPT 는 같은 게이트웨이 키를 쓰며 호출 경로는 아직 없습니다.
+taxonomy 8종은 임시안입니다. 1주차 멘토링 후 확정합니다. 분류 신뢰도 임계값과 STT 단어 신뢰도 임계값도 임시이며 tune 데이터로 다시 잡습니다. STT·추출·분류 호출 형식은 학교 게이트웨이에서 확인했습니다. 추출 모델 기본값은 `claude-opus-5-5`, 분류 모델 기본값은 `jev-1.14.0` 입니다. GPT 전용 경로는 아직 없습니다.

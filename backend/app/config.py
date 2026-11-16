@@ -46,7 +46,9 @@ class Settings(BaseSettings):
     gateway_max_retries: int = 3
     gateway_retry_backoff_seconds: float = 0.5
     claude_model: str = ""
-    jev_model_version: str = ""
+    # 사실 추출 chat/completions 모델. 비우면 claude_model 을 쓴다.
+    extract_model: str = "claude-opus-5-5"
+    jev_model_version: str = "jev-1.14.0"
 
     stt_provider: Literal["mock", "gateway"] = "mock"
     # 학교 게이트웨이에서 v5·v6 를 확인했다. 같은 클립에서 전사가 같았고 기본은 v5.

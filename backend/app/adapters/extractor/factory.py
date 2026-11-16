@@ -14,7 +14,7 @@ def get_extractor(settings: Settings) -> ExtractorAdapter:
     if provider == "mock":
         return MockExtractor()
     if provider == "gateway_claude":
-        client = GatewayClient(settings.gateway_base_url, settings.gateway_api_key)
-        return GatewayClaudeExtractor(client, settings.claude_model)
+        model = settings.extract_model.strip() or settings.claude_model.strip()
+        return GatewayClaudeExtractor(GatewayClient.from_settings(settings), model)
     never: Never = provider
     raise AssertionError(never)

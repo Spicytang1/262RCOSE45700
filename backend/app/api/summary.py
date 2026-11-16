@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.adapters.extractor.factory import get_extractor
+from app.adapters.extractor.gateway_claude import ExtractionFailed
+from app.adapters.gateway.errors import GatewayError
 from app.api.errors import RESP_401, RESP_403, RESP_422
 from app.auth.deps import get_db, get_settings, require_role
 from app.config import Settings
@@ -38,8 +40,6 @@ def weekly_summary(
     stats = aggregate_weekly(db, from_, to)
     try:
         narrative = get_extractor(settings).summarize(stats.model_dump())
-    except NotImplementedError as exc:
-        raise HTTPException(status_code=503, detail="요약 문장 생성에 실패했습니다. 다시 시도해 주세요.") from exc
-    except ExternalCallError as exc:
+    except (NotImplementedError, ExternalCallError, GatewayError, ExtractionFailed) as exc:
         raise HTTPException(status_code=503, detail="요약 문장 생성에 실패했습니다. 다시 시도해 주세요.") from exc
     return WeeklySummary.model_validate({"from": from_, "to": to, "stats": stats, "narrative": narrative})
