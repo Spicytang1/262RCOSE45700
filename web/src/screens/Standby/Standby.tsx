@@ -1,4 +1,4 @@
-import { ChevronRight, Info, Mic, Play, Settings } from "lucide-react";
+import { ChevronRight, Info, Mic, Play } from "lucide-react";
 import type { DriveSession, Supervisor } from "@/types/report";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import { focusStyle } from "@/lib/recordingPresentation";
@@ -8,7 +8,6 @@ type Props = {
   permissions: DrivePermissions | null;
   onStart: () => void;
   profile: Supervisor;
-  onSettings: () => void;
   recordingCount: number;
   session: DriveSession | undefined;
   loadState: "loading" | "error" | "ready";
@@ -22,7 +21,7 @@ type Props = {
   onRetry: () => void;
 };
 
-export default function Standby({ permissions, onStart, profile, onSettings, recordingCount, session, loadState, actionState, actionError, notice, onChangeSupervisor, onStartSession, onEndSession, onOpenRecordings, onRetry }: Props) {
+export default function Standby({ permissions, onStart, profile, recordingCount, session, loadState, actionState, actionError, notice, onChangeSupervisor, onStartSession, onEndSession, onOpenRecordings, onRetry }: Props) {
   const active = !!session && !session.endedAt;
   const disabled = loadState !== "ready" || actionState === "busy";
   const checkingPermissions = permissions?.microphone === "checking" || permissions?.location === "checking";
@@ -30,7 +29,6 @@ export default function Standby({ permissions, onStart, profile, onSettings, rec
     <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-white px-5 pt-6 pb-8">
       <header className="flex items-center justify-between">
         <h1 className="text-[20px] font-extrabold tracking-tight">주행 이슈 리포트</h1>
-        <button type="button" onClick={onSettings} disabled={actionState === "busy"} aria-label="환경설정" className={`ml-auto mr-1 flex size-11 shrink-0 items-center justify-center rounded-button hover:bg-surface disabled:opacity-40 ${focusStyle}`}><Settings className="size-5" aria-hidden="true" /></button>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[13px] font-semibold text-ink-sub">
           <span className={`size-2 rounded-full ${active ? "bg-[#16a55c]" : "bg-ink-sub"}`} aria-hidden="true" />
           {loadState === "loading" ? "확인 중" : active ? "운행 중" : "운행 대기"}
