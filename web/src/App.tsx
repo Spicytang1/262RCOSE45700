@@ -11,7 +11,7 @@ import RecordingList from "@/screens/Recordings/RecordingList";
 import { filteredRecordings, INITIAL_LIST_OPTIONS, type ListOptions } from "@/lib/recordingList";
 import RecordingDetail from "@/screens/Recordings/RecordingDetail";
 import { RecordingFrame, RecordingHeader } from "@/screens/Recordings/RecordingChrome";
-import type { AudioClip, RecordingLocation, StoredRecording, Supervisor } from "@/types/report";
+import type { AudioClip, RecordingLocation, RecordingStartTrigger, StoredRecording, Supervisor } from "@/types/report";
 import { captureRecordingLocation } from "@/lib/recordingLocation";
 import { resolveSupervisor, useSessionProfiles } from "@/lib/sessionProfiles";
 import Settings from "@/screens/Settings/Settings";
@@ -41,6 +41,8 @@ export default function App() {
   const startedAt = useRef("");
   // 녹음이 끝난 이유(수동/무음 자동 종료). 보관 재시도에서도 안내 문구를 유지하기 위해 ref에 둔다.
   const finishReasonRef = useRef<FinishReason>("manual");
+  // 녹음 시작 방식. 현재는 직접 녹음 버튼만 있다. 차량 수동 개입 자동 시작은 연동하지 않는다.
+  const startTriggerRef = useRef<RecordingStartTrigger>("button");
   const locationRequest = useRef<{ controller: AbortController; result: Promise<RecordingLocation> } | null>(null);
   const [audioClips, setAudioClips] = useState<AudioClip[]>([]);
   const [drivePermissions, setDrivePermissions] = useState<DrivePermissions | null>(null);
@@ -75,6 +77,7 @@ export default function App() {
     locationRequest.current?.controller.abort();
     const controller = new AbortController();
     startedAt.current = new Date().toISOString();
+    startTriggerRef.current = "button";
     locationRequest.current = { controller, result: captureRecordingLocation(controller.signal) };
     setNotice(""); navigateStandby(); setScreen("record");
   }
@@ -157,6 +160,7 @@ export default function App() {
       id: crypto.randomUUID(), supervisorId, audio: blob,
       recordedAt: startedAt.current || new Date().toISOString(), durationSec,
       sessionId: activeSession.id,
+      startTrigger: startTriggerRef.current,
     };
     finishReasonRef.current = reason;
     setPending(recording);
