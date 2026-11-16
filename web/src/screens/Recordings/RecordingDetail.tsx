@@ -3,7 +3,7 @@ import Button from "@/components/Button";
 import { dateText, DEMO_TRANSCRIPT, DEMO_VEHICLE_DATA, FIELD_CONFIG, focusStyle, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
 import useReviewAutosave from "@/lib/useReviewAutosave";
 import { formatTime } from "@/lib/formatTime";
-import type { DriveSession, RecordingEntry, RecordingStartTrigger, RecordingStatus, StructuredFieldKey } from "@/types/report";
+import type { DriveSession, RecordingEntry, RecordingStatus, StructuredFieldKey } from "@/types/report";
 import { RecordingFrame, RecordingHeader, RecordingPanel } from "./RecordingChrome";
 import RecordingPlayer from "./RecordingPlayer";
 import RecordingLocationMap from "./RecordingLocationMap";
@@ -22,18 +22,15 @@ type Props = {
   onSaved: () => void;
 };
 
-/** 녹음 시작 방식 표시 문구. 이전 녹음은 값이 없으므로 "기록 없음"으로 보여준다. */
-const START_TRIGGER_TEXT: Record<RecordingStartTrigger | "none", { label: string; description: string }> = {
-  button: { label: "직접 녹음", description: "앱에서 녹음 버튼을 눌러 시작했어요." },
-  intervention: { label: "수동 개입 자동 시작", description: "차량에서 수동 개입(핸들·브레이크 등)이 감지되어 자동으로 시작했어요." },
-  none: { label: "기록 없음", description: "이전에 저장된 녹음이라 시작 방식이 기록되어 있지 않아요." },
-};
+/** 녹음 시작 방식 표시 문구. 시작 방식이 저장되지 않은 이전 녹음은 "시작 방식 기록 없음"으로 보여준다. */
+const START_TRIGGER_LABEL = { button: "직접 녹음", intervention: "수동 개입 자동 시작" } as const;
 
 export default function RecordingDetail({ supervisorName, recording, session, position, total, previousId, nextId, onOpen, onBack, onSaved }: Props) {
   const { draft, phase, change, flush, leave } = useReviewAutosave(recording, onSaved);
 
   const control = `w-full rounded-button border border-line bg-white px-3 py-3 text-[15px] ${focusStyle}`;
-  const startTrigger = START_TRIGGER_TEXT[recording.startTrigger ?? "none"];
+  const sessionLabel = session ? `${session.number}회차 · ${session.endedAt ? "운행 종료" : "운행 중"}` : "이전 녹음 · 회차 미지정";
+  const triggerLabel = recording.startTrigger ? START_TRIGGER_LABEL[recording.startTrigger] : "시작 방식 기록 없음";
 
   return <RecordingFrame>
     <RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => void leave(onBack)} />
@@ -44,7 +41,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     </nav>
     <div className="flex flex-col gap-3 px-5 pt-4">
       <section className="rounded-[20px] bg-ink p-5 text-white">
-        <p className="text-[12px] font-bold text-kakao">{session ? `${session.number}회차 · ${session.endedAt ? "운행 종료" : "운행 중"}` : "이전 녹음 · 회차 미지정"}</p>
+        <p className="text-[12px] font-bold text-kakao" data-start-trigger={recording.startTrigger ?? "none"}>{sessionLabel} · {triggerLabel}</p>
         <h2 className="mt-2 text-[20px] font-extrabold break-words">{recordingTitle({ ...recording, review: draft })}</h2>
         <p className="mt-3 text-[13px] text-white/85">{dateText(recording.recordedAt)} {timeText(recording.recordedAt)}</p>
         {/* TODO(backend): 녹음 좌표를 주소로 변환한 응답으로 교체한다. XX동 XX로는 표시용 임시 주소이며 원본에 저장하지 않는다. */}
@@ -64,13 +61,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         </RecordingPanel>
         <RecordingPanel title="녹음 제목"><label htmlFor="recording-title" className="mb-2 block text-[13px] text-ink-sub">목록에 표시할 제목</label><input id="recording-title" name="recording-title" value={draft.title} onChange={event => { const title = event.target.value; change(current => ({ ...current, title })); }} maxLength={120} placeholder={recordingTitle({ ...recording, review: undefined })} className={control} /></RecordingPanel>
       </fieldset>
-      <RecordingPanel title="녹음 시작 방식">
-        <p className="text-[15px] font-bold" data-start-trigger={recording.startTrigger ?? "none"}>{startTrigger.label}</p>
-        <p className="mt-1 text-[13px] text-ink-sub">{startTrigger.description}</p>
-        <p className="mt-2 text-[12px] text-ink-sub">수동 개입 자동 시작은 차량과 연동된 뒤에만 기록돼요. 현재는 차량과 연결되어 있지 않아요.</p>
-      </RecordingPanel>
       <RecordingPanel title="원본 음성"><RecordingPlayer audio={recording.audio} durationSec={recording.durationSec} /></RecordingPanel>
-      <RecordingVideo durationSec={recording.durationSec} />
       {/* TODO(backend): DEMO_TRANSCRIPT 대신 녹음별 전사 응답을 표시하고 처리 중·실패·미연결 상태를 구분한다. */}
       <RecordingPanel title="전사"><span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">시연용 예시</span><p className="text-[15px]">{DEMO_TRANSCRIPT}</p><p className="mt-3 text-[12px] text-ink-sub">모든 녹음에 동일한 예시를 표시해요. 실제 음성 인식 결과는 아니에요.</p></RecordingPanel>
       <RecordingPanel title="정리 항목">
@@ -103,6 +94,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         })}</fieldset>
       </RecordingPanel>
       <RecordingLocationMap location={recording.location} />
+      <RecordingVideo durationSec={recording.durationSec} />
       {/* TODO(backend): 녹음 시각·회차와 연결된 차량 로그(이전 동작·속도·차선·저크 등)를 서버에서 조회해 표시한다. 기기 위치를 차량 GPS로 대체 사용하지 않는다. */}
       <RecordingPanel title="차량 데이터">
         <span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">임시 데이터</span>
