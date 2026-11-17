@@ -36,6 +36,13 @@ export type RecordingLocation = { requestedAt: string } & (
   | { status: "denied" | "timeout" | "unavailable" | "unsupported" | "insecure" }
 );
 
+/**
+ * 녹음이 시작된 방식.
+ * - button: 사용자가 앱에서 녹음 버튼을 직접 누름
+ * - intervention: 차량의 수동 개입(핸들·브레이크 등)으로 자동 시작됨 (차량 연동 전까지 실제로 발생하지 않음)
+ */
+export type RecordingStartTrigger = "button" | "intervention";
+
 /** 재생용 URL 대신 녹음 원본 자체를 보관한다. */
 export type StoredRecording = {
   id: string;
@@ -47,6 +54,8 @@ export type StoredRecording = {
   sessionId?: string;
   /** 이전 녹음에는 위치가 없다. 상세를 열 때 현재 위치로 덮어쓰지 않는다. */
   location?: RecordingLocation;
+  /** 녹음 시작 방식. 이전 녹음에는 없으며, 없으면 "기록 없음"으로 표시한다. */
+  startTrigger?: RecordingStartTrigger;
 };
 
 /** 녹음 한 개 (재생용 URL + 녹음 길이) */

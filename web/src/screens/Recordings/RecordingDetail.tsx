@@ -7,6 +7,7 @@ import type { DriveSession, RecordingEntry, RecordingStatus, StructuredFieldKey 
 import { RecordingFrame, RecordingHeader, RecordingPanel } from "./RecordingChrome";
 import RecordingPlayer from "./RecordingPlayer";
 import RecordingLocationMap from "./RecordingLocationMap";
+import RecordingVideo from "./RecordingVideo";
 
 type Props = {
   supervisorName: string;
@@ -21,10 +22,15 @@ type Props = {
   onSaved: () => void;
 };
 
+/** 녹음 시작 방식 표시 문구. 시작 방식이 저장되지 않은 이전 녹음은 "시작 방식 기록 없음"으로 보여준다. */
+const START_TRIGGER_LABEL = { button: "직접 녹음", intervention: "수동 개입 자동 시작" } as const;
+
 export default function RecordingDetail({ supervisorName, recording, session, position, total, previousId, nextId, onOpen, onBack, onSaved }: Props) {
   const { draft, phase, change, flush, leave } = useReviewAutosave(recording, onSaved);
 
   const control = `w-full rounded-button border border-line bg-white px-3 py-3 text-[15px] ${focusStyle}`;
+  const sessionLabel = session ? `${session.number}회차 · ${session.endedAt ? "운행 종료" : "운행 중"}` : "이전 녹음 · 회차 미지정";
+  const triggerLabel = recording.startTrigger ? START_TRIGGER_LABEL[recording.startTrigger] : "시작 방식 기록 없음";
 
   return <RecordingFrame>
     <RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => void leave(onBack)} />
@@ -35,7 +41,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     </nav>
     <div className="flex flex-col gap-3 px-5 pt-4">
       <section className="rounded-[20px] bg-ink p-5 text-white">
-        <p className="text-[12px] font-bold text-kakao">{session ? `${session.number}회차 · ${session.endedAt ? "운행 종료" : "운행 중"}` : "이전 녹음 · 회차 미지정"}</p>
+        <p className="text-[12px] font-bold text-kakao" data-start-trigger={recording.startTrigger ?? "none"}>{sessionLabel} · {triggerLabel}</p>
         <h2 className="mt-2 text-[20px] font-extrabold break-words">{recordingTitle({ ...recording, review: draft })}</h2>
         <p className="mt-3 text-[13px] text-white/85">{dateText(recording.recordedAt)} {timeText(recording.recordedAt)}</p>
         {/* TODO(backend): 녹음 좌표를 주소로 변환한 응답으로 교체한다. XX동 XX로는 표시용 임시 주소이며 원본에 저장하지 않는다. */}
@@ -88,6 +94,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         })}</fieldset>
       </RecordingPanel>
       <RecordingLocationMap location={recording.location} />
+      <RecordingVideo durationSec={recording.durationSec} />
       {/* TODO(backend): 녹음 시각·회차와 연결된 차량 로그(이전 동작·속도·차선·저크 등)를 서버에서 조회해 표시한다. 기기 위치를 차량 GPS로 대체 사용하지 않는다. */}
       <RecordingPanel title="차량 데이터">
         <span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">임시 데이터</span>

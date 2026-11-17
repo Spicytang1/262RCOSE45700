@@ -1,4 +1,4 @@
-import { ExternalLink, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import type { RecordingLocation } from "@/types/report";
 import { dateText, focusStyle, timeText } from "@/lib/recordingPresentation";
 import { LOCATION_UNAVAILABLE_TEXT } from "@/lib/recordingLocation";
@@ -14,7 +14,6 @@ export default function RecordingLocationMap({ location }: { location?: Recordin
     bbox: [Math.max(-180, longitude - 0.005), Math.max(-90, latitude - 0.003), Math.min(180, longitude + 0.005), Math.min(90, latitude + 0.003)].join(","),
     layer: "mapnik", marker: `${latitude},${longitude}`,
   });
-  const mapUrl = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`;
 
   return <RecordingPanel title="녹음 시작 위치">
     <p className="mb-3 flex items-start gap-2 text-[13px] text-ink-sub"><MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />녹음 버튼을 누를 때 요청한 기기 위치예요. 사건 발생 위치와 다를 수 있어요.</p>
@@ -25,7 +24,6 @@ export default function RecordingLocationMap({ location }: { location?: Recordin
       <div className="flex flex-wrap gap-x-2"><dt>위치 정확도</dt><dd>약 {Math.round(accuracy).toLocaleString("ko-KR")}m</dd></div>
       <div className="flex flex-wrap gap-x-2"><dt>위치 확인</dt><dd>{dateText(capturedAt)} {timeText(capturedAt)}</dd></div>
     </dl>
-    <a href={mapUrl} target="_blank" rel="noreferrer" className={`mt-3 inline-flex min-h-11 items-center gap-2 rounded-button bg-surface px-3 text-[13px] font-bold hover:bg-line ${focusStyle}`}>큰 지도 보기<ExternalLink className="size-3.5" aria-hidden="true" /></a>
-    <p className="mt-2 text-[11px] text-ink-sub">지도가 보이지 않으면 큰 지도 보기를 눌러 주세요. 지도 표시 시 이 좌표가 지도 서비스에 전달돼요.</p>
+    <p className="mt-2 text-[11px] text-ink-sub">지도 표시 시 이 좌표가 지도 서비스에 전달돼요.</p>
   </RecordingPanel>;
 }

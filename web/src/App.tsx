@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Login from "@/screens/Login/Login";
 import Standby from "@/screens/Standby/Standby";
-import Record from "@/screens/Record/Record";
+import Record, { type FinishReason } from "@/screens/Record/Record";
 // import Review from "@/screens/Review/Review";
 import Button from "@/components/Button";
 import { endSession, getSessions, saveRecording, startSession } from "@/lib/recordingStore";
@@ -11,7 +11,7 @@ import RecordingList from "@/screens/Recordings/RecordingList";
 import { filteredRecordings, INITIAL_LIST_OPTIONS, type ListOptions } from "@/lib/recordingList";
 import RecordingDetail from "@/screens/Recordings/RecordingDetail";
 import { RecordingFrame, RecordingHeader } from "@/screens/Recordings/RecordingChrome";
-import type { AudioClip, RecordingLocation, StoredRecording, Supervisor } from "@/types/report";
+import type { AudioClip, RecordingLocation, RecordingStartTrigger, StoredRecording, Supervisor } from "@/types/report";
 import { captureRecordingLocation } from "@/lib/recordingLocation";
 import { resolveSupervisor, useSessionProfiles } from "@/lib/sessionProfiles";
 import Settings from "@/screens/Settings/Settings";
@@ -39,6 +39,10 @@ export default function App() {
   const [saveError, setSaveError] = useState(false);
   const savingRef = useRef(false);
   const startedAt = useRef("");
+  // 녹음이 끝난 이유(수동/무음 자동 종료). 보관 재시도에서도 안내 문구를 유지하기 위해 ref에 둔다.
+  const finishReasonRef = useRef<FinishReason>("manual");
+  // 녹음 시작 방식. 현재는 직접 녹음 버튼만 있다. 차량 수동 개입 자동 시작은 연동하지 않는다.
+  const startTriggerRef = useRef<RecordingStartTrigger>("button");
   const locationRequest = useRef<{ controller: AbortController; result: Promise<RecordingLocation> } | null>(null);
   const [audioClips, setAudioClips] = useState<AudioClip[]>([]);
   const [drivePermissions, setDrivePermissions] = useState<DrivePermissions | null>(null);
@@ -73,6 +77,7 @@ export default function App() {
     locationRequest.current?.controller.abort();
     const controller = new AbortController();
     startedAt.current = new Date().toISOString();
+    startTriggerRef.current = "button";
     locationRequest.current = { controller, result: captureRecordingLocation(controller.signal) };
     setNotice(""); navigateStandby(); setScreen("record");
   }
@@ -149,13 +154,15 @@ export default function App() {
     setAudioClips([]);
   }
 
-  function handleFinish(blob: Blob, durationSec: number) {
+  function handleFinish(blob: Blob, durationSec: number, reason: FinishReason) {
     if (supervisorId === null || !activeSession) return;
     const recording: StoredRecording = {
       id: crypto.randomUUID(), supervisorId, audio: blob,
       recordedAt: startedAt.current || new Date().toISOString(), durationSec,
       sessionId: activeSession.id,
+      startTrigger: startTriggerRef.current,
     };
+    finishReasonRef.current = reason;
     setPending(recording);
     void commitRecording(recording);
   }
@@ -177,7 +184,9 @@ export default function App() {
       await data.reload();
       locationRequest.current = null;
       setPending(null);
-      setNotice("녹음을 보관했어요. 주행 감독에 집중해 주세요.");
+      setNotice(finishReasonRef.current === "silence"
+        ? "무음이 4초 이어져 녹음을 자동으로 끝냈어요. 녹음은 보관했어요."
+        : "녹음을 보관했어요. 주행 감독에 집중해 주세요.");
       setScreen("standby");
     } catch {
       setSaveError(true);
@@ -235,7 +244,7 @@ export default function App() {
   }
 
   //추가녹음 화면 (미사용)
-  /* 
+  /*
   if (screen === "addRecord") {
     return <Record onFinish={handleAddFinish} onCancel={() => setScreen("review")} />;
   }
@@ -275,7 +284,6 @@ export default function App() {
   return <Standby
     permissions={drivePermissions}
     profile={profile}
-    onSettings={() => { window.location.hash = "/settings"; }}
     recordingCount={recordingCount}
     session={currentSession}
     loadState={data.loading ? "loading" : data.error ? "error" : "ready"}
