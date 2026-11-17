@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { AlertCircle } from "lucide-react";
 import Login from "@/screens/Login/Login";
 import Standby from "@/screens/Standby/Standby";
 import Record, { type FinishReason } from "@/screens/Record/Record";
 // import Review from "@/screens/Review/Review";
 import Button from "@/components/Button";
+import ConfirmSheet from "@/components/ConfirmSheet";
+import StateView from "@/components/StateView";
 import { endSession, getSessions, saveRecording, startSession } from "@/lib/recordingStore";
 import useRecordingData from "@/lib/useRecordingData";
 import useRecordingRoute, { navigateRecordings, navigateStandby } from "@/lib/useRecordingRoute";
@@ -34,6 +37,7 @@ export default function App() {
   const actionLock = useRef(false);
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirmEnd, setConfirmEnd] = useState<"end" | "switch" | null>(null);
   const [pending, setPending] = useState<StoredRecording | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -138,7 +142,7 @@ export default function App() {
   function changeSupervisor() {
     if (actionLock.current) return;
     if (activeSession) {
-      if (window.confirm("진행 중인 운행을 종료하고 감독관을 변경할까요?")) void changeSession("end", true);
+      setConfirmEnd("switch");
     } else logoutSupervisor();
   }
 
@@ -226,6 +230,9 @@ export default function App() {
   if (pending) {
     return (
       <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col justify-center bg-white px-6 py-8 leading-[1.8]">
+        {saveError
+          ? <span className="mb-5 flex size-14 items-center justify-center rounded-full bg-warning-soft text-warning-ink" aria-hidden="true"><AlertCircle className="size-7" /></span>
+          : <span aria-hidden="true" className="mb-5 size-12 animate-spin rounded-full border-[4px] border-line border-t-kakao-press motion-reduce:animate-none" />}
         <h1 className="text-[24px] font-extrabold tracking-tight">{saveError ? "녹음을 아직 보관하지 못했어요" : "녹음을 보관하고 있어요"}</h1>
         <p role={saveError ? "alert" : "status"} className="mt-4 text-[15px] text-ink-sub">
           {saveError ? "이 화면에서 녹음을 유지하고 있어요. 기기의 저장 공간이나 브라우저의 저장 허용 여부를 확인한 뒤 다시 시도해 주세요. 화면을 닫거나 새로고침하면 이 녹음은 사라질 수 있어요." : "녹음과 시작 시 요청한 위치를 보관하고 있어요. 위치 확인은 최대 10초 기다리며, 확인하지 못해도 음성은 보관해요. 완료되면 대기로 돌아가요."}
@@ -273,15 +280,16 @@ export default function App() {
 
   if (route.page === "detail") {
     const record = data.recordings.find(item => item.id === route.id);
-    if (data.error || (!record && data.loading)) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5"><p role={data.error ? "alert" : "status"}>{data.error ? "녹음을 읽지 못했어요. 다시 시도해 주세요." : "녹음을 불러오는 중이에요…"}</p>{data.error && <Button onClick={() => void data.reload()} className="mt-4">다시 불러오기</Button>}</div></RecordingFrame>;
-    if (!record) return <RecordingFrame><RecordingHeader title="녹음을 찾을 수 없어요" backLabel="목록" onBack={() => navigateRecordings()} /><p className="p-5 text-[14px] text-ink-sub">현재 감독관의 보관 목록에 없는 녹음이에요.</p></RecordingFrame>;
+    if (data.error || (!record && data.loading)) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5">{data.error ? <StateView kind="error" message="녹음을 읽지 못했어요. 다시 시도해 주세요." onRetry={() => void data.reload()} /> : <StateView kind="loading" message="녹음을 불러오는 중이에요…" />}</div></RecordingFrame>;
+    if (!record) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5"><StateView kind="empty" title="녹음을 찾을 수 없어요" message="현재 감독관의 보관 목록에 없는 녹음이에요." /></div></RecordingFrame>;
     const filtered = filteredRecordings(data.recordings, currentSession, listOptions);
     const siblings = filtered.some(item => item.id === record.id) ? filtered : data.recordings;
     const index = siblings.findIndex(item => item.id === record.id);
     return <RecordingDetail key={record.id} supervisorName={profile.name} recording={record} session={data.sessions.find(session => session.id === record.sessionId)} position={index + 1} total={siblings.length} previousId={siblings[index - 1]?.id} nextId={siblings[index + 1]?.id} onOpen={navigateRecordings} onBack={() => navigateRecordings()} onSaved={() => void data.reload()} />;
   }
 
-  return <Standby
+  return <>
+  <Standby
     permissions={drivePermissions}
     profile={profile}
     recordingCount={recordingCount}
@@ -292,9 +300,11 @@ export default function App() {
     notice={notice}
     onStart={beginRecording}
     onStartSession={() => void changeSession("start")}
-    onEndSession={() => { if (window.confirm("이번 운행을 종료할까요? 보관한 녹음은 그대로 남아요.")) void changeSession("end"); }}
+    onEndSession={() => setConfirmEnd("end")}
     onOpenRecordings={() => { setListOptions(INITIAL_LIST_OPTIONS); navigateRecordings(); }}
     onRetry={() => void data.reload()}
     onChangeSupervisor={changeSupervisor}
-  />;
+  />
+  {confirmEnd && <ConfirmSheet title={confirmEnd === "switch" ? "운행을 종료하고 감독관을 바꿀까요?" : "이번 운행을 종료할까요?"} message="보관한 녹음은 그대로 남아요. 종료한 뒤에는 새 운행을 시작해야 녹음할 수 있어요." confirmLabel={confirmEnd === "switch" ? "종료하고 변경" : "운행 종료"} onCancel={() => setConfirmEnd(null)} onConfirm={() => { const mode = confirmEnd; setConfirmEnd(null); void (mode === "switch" ? changeSession("end", true) : changeSession("end")); }} />}
+  </>;
 }

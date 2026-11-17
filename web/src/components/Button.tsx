@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 import { twMerge } from "tailwind-merge";
 
 type Variant = "primary" | "secondary" | "ghost" | "ghostDark";
@@ -12,7 +12,7 @@ const VARIANT_CLASS: Record<Variant, string> = {
   ghostDark: "bg-transparent text-white/60 active:bg-white/10",
 };
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+type Props = ComponentProps<"button"> & {
   variant?: Variant;
 };
 

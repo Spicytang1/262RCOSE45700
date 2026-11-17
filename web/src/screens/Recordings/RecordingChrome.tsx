@@ -17,8 +17,8 @@ export function RecordingPanel({ title, children }: { title: string; children: R
   return <section className="rounded-[20px] border border-line bg-white p-5"><h2 className="mb-3 text-[16px] font-extrabold">{title}</h2>{children}</section>;
 }
 
-export function RecordingFold({ title, badge, children }: { title: string; badge?: string; children: ReactNode }) {
-  return <details className="group rounded-[20px] border border-line bg-white">
+export function RecordingFold({ title, badge, onOpen, children }: { title: string; badge?: string; onOpen?: () => void; children: ReactNode }) {
+  return <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className="group rounded-[20px] border border-line bg-white">
     <summary className={`flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-[20px] px-5 py-3 [&::-webkit-details-marker]:hidden ${focusStyle}`}>
       <span className="flex min-w-0 items-center gap-2 text-[16px] font-extrabold">{title}{badge && <span className="shrink-0 rounded-full bg-kakao-soft px-2.5 py-0.5 text-[11px] font-bold">{badge}</span>}</span>
       <ChevronDown className="size-5 shrink-0 text-ink-sub transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />

@@ -21,6 +21,7 @@ export default function Record({ onFinish, onCancel }: Props) {
   const [seconds, setSeconds] = useState(0);
   const [ready, setReady] = useState(false); // 녹음이 실제로 시작됐는지
   const [error, setError] = useState("");
+  const [silenceRatio, setSilenceRatio] = useState(0);
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const levels = useAudioLevels(micStream);
 
@@ -103,6 +104,7 @@ export default function Record({ onFinish, onCancel }: Props) {
     if (latest >= SILENCE_LEVEL) {
       heardSpeechRef.current = true;
       silentCountRef.current = 0;
+      setSilenceRatio(0);
       return;
     }
 
@@ -110,6 +112,7 @@ export default function Record({ onFinish, onCancel }: Props) {
     if (!heardSpeechRef.current) return;
 
     silentCountRef.current += 1;
+    setSilenceRatio(Math.min(silentCountRef.current / SILENCE_SAMPLES, 1));
     if (silentCountRef.current >= SILENCE_SAMPLES) {
       silentCountRef.current = 0;
       handleFinish("silence");
@@ -146,7 +149,7 @@ export default function Record({ onFinish, onCancel }: Props) {
           </p>
         ) : (
           <p className="text-[16px] font-semibold text-kakao" aria-live="polite">
-            {ready ? "듣는 중이에요. 4초 동안 조용하면 자동으로 끝나요" : "마이크 준비 중..."}
+            {!ready ? "마이크 준비 중..." : silenceRatio > 0.25 ? `조용해요. ${Math.max(1, Math.ceil((1 - silenceRatio) * SILENCE_MS / 1000))}초 뒤에 자동으로 끝나요` : "듣는 중이에요. 4초 동안 조용하면 자동으로 끝나요"}
           </p>
         )}
 
@@ -154,6 +157,9 @@ export default function Record({ onFinish, onCancel }: Props) {
         {!error && (
           <div className="mt-10 w-full">
             <Waveform levels={levels} />
+            <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-white/15" aria-hidden="true">
+              <div className="h-full rounded-full bg-kakao transition-[width] duration-100 ease-linear" style={{ width: `${silenceRatio * 100}%` }} />
+            </div>
           </div>
         )}
       </section>

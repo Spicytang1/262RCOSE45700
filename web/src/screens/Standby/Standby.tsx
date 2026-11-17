@@ -64,13 +64,13 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
         <div className="relative flex items-center justify-center">
           {active && <span
             aria-hidden="true"
-            className="absolute size-44 rounded-full bg-kakao animate-pulse-ring motion-reduce:hidden"
+            className="absolute size-48 rounded-full bg-kakao animate-pulse-ring motion-reduce:hidden"
           />}
           <button
             type="button"
             onClick={active ? onStart : onStartSession}
             disabled={disabled || checkingPermissions}
-            className={`relative flex size-44 flex-col items-center justify-center gap-2 rounded-full transition-[scale,background-color] duration-150 active:scale-[0.96] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ink ${active ? "bg-kakao text-ink shadow-[0_10px_30px_rgba(254,229,0,0.45)] hover:bg-kakao-press active:bg-kakao-press" : "bg-ink text-white shadow-[0_10px_30px_rgba(25,25,25,0.22)] hover:bg-ink-sub active:bg-ink-sub"}`}
+            className={`relative flex size-48 flex-col items-center justify-center gap-2 rounded-full transition-[scale,background-color] duration-150 active:scale-[0.96] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ink ${active ? "bg-kakao text-ink shadow-[0_10px_30px_rgba(254,229,0,0.45)] hover:bg-kakao-press active:bg-kakao-press" : "bg-ink text-white shadow-[0_10px_30px_rgba(25,25,25,0.22)] hover:bg-ink-sub active:bg-ink-sub"}`}
           >
             {active ? <Mic className="size-12" strokeWidth={2.2} aria-hidden="true" /> : <Play className="size-10 fill-kakao text-kakao" strokeWidth={2.2} aria-hidden="true" />}
             <span className="text-[19px] font-extrabold">{actionState === "busy" ? "처리 중…" : active ? "녹음" : "운행 시작"}</span>
