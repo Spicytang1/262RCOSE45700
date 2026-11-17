@@ -4,7 +4,7 @@ import { dateText, DEMO_TRANSCRIPT, DEMO_VEHICLE_DATA, FIELD_CONFIG, focusStyle,
 import useReviewAutosave from "@/lib/useReviewAutosave";
 import { formatTime } from "@/lib/formatTime";
 import type { DriveSession, RecordingEntry, RecordingStatus, StructuredFieldKey } from "@/types/report";
-import { RecordingFrame, RecordingHeader, RecordingPanel } from "./RecordingChrome";
+import { RecordingFold, RecordingFrame, RecordingHeader, RecordingPanel } from "./RecordingChrome";
 import RecordingPlayer from "./RecordingPlayer";
 import RecordingLocationMap from "./RecordingLocationMap";
 import RecordingVideo from "./RecordingVideo";
@@ -39,6 +39,10 @@ export default function RecordingDetail({ supervisorName, recording, session, po
       <span className="text-[13px] font-semibold tabular-nums">{position} / {total}</span>
       <button type="button" disabled={!nextId} onClick={() => nextId && void leave(() => onOpen(nextId))} className={`flex min-h-11 items-center rounded-button px-2 text-[13px] font-bold disabled:opacity-30 ${focusStyle}`}>다음<ChevronRight className="size-4" aria-hidden="true" /></button>
     </nav>
+    <div className="sticky top-0 z-10 border-b border-line bg-white/90 px-5 py-2.5 backdrop-blur">
+      <p role="status" className="flex items-center gap-2 text-[13px] font-semibold text-ink-sub"><span aria-hidden="true" className={`size-2 rounded-full ${phase === "error" ? "bg-danger" : phase === "saved" ? "bg-ok" : "bg-ink-muted animate-blink"}`} />{phase === "saved" ? "변경 내용을 자동 저장했어요." : phase === "error" ? "자동 저장을 완료하지 못했어요." : phase === "saving" ? "자동 저장 중이에요…" : "변경 내용을 반영하고 있어요…"}</p>
+      {phase === "error" && <><p role="alert" className="mt-2 text-[13px] text-danger-ink">입력 내용은 유지하고 있어요. 저장 공간을 확인한 뒤 다시 시도해 주세요. 저장 전에는 이 화면을 닫지 마세요.</p><Button onClick={() => void flush()} className={`mt-3 w-full ${focusStyle}`}>저장 다시 시도</Button></>}
+    </div>
     <div className="flex flex-col gap-3 px-5 pt-4">
       <section className="rounded-[20px] bg-ink p-5 text-white">
         <p className="text-[12px] font-bold text-kakao" data-start-trigger={recording.startTrigger ?? "none"}>{sessionLabel} · {triggerLabel}</p>
@@ -48,10 +52,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         <p title="임시 주소예요. 실제 위치와 연결되지 않았어요." aria-label="XX동 XX로 (임시 주소)" className="mt-2 text-[20px] font-extrabold break-words">XX동 XX로</p>
         <p className="mt-1 text-[13px] text-white/85 [overflow-wrap:anywhere]">{supervisorName} · 녹음 {formatTime(recording.durationSec)}</p>
       </section>
-      <div className="rounded-card border border-line bg-white px-4 py-3">
-        <p role="status" className="text-[13px] font-semibold text-ink-sub">{phase === "saved" ? "변경 내용을 자동 저장했어요." : phase === "error" ? "자동 저장을 완료하지 못했어요." : phase === "saving" ? "자동 저장 중이에요…" : "변경 내용을 반영하고 있어요…"}</p>
-        {phase === "error" && <><p role="alert" className="mt-2 text-[13px] text-danger-ink">입력 내용은 유지하고 있어요. 저장 공간을 확인한 뒤 다시 시도해 주세요. 저장 전에는 이 화면을 닫지 마세요.</p><Button onClick={() => void flush()} className={`mt-3 w-full ${focusStyle}`}>저장 다시 시도</Button></>}
-      </div>
+      <RecordingPanel title="원본 음성"><RecordingPlayer audio={recording.audio} durationSec={recording.durationSec} /></RecordingPanel>
       <fieldset className="contents">
         <legend className="sr-only">검토 상태와 녹음 제목</legend>
         <RecordingPanel title="검토 상태">
@@ -61,9 +62,6 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         </RecordingPanel>
         <RecordingPanel title="녹음 제목"><label htmlFor="recording-title" className="mb-2 block text-[13px] text-ink-sub">목록에 표시할 제목</label><input id="recording-title" name="recording-title" value={draft.title} onChange={event => { const title = event.target.value; change(current => ({ ...current, title })); }} maxLength={120} placeholder={recordingTitle({ ...recording, review: undefined })} className={control} /></RecordingPanel>
       </fieldset>
-      <RecordingPanel title="원본 음성"><RecordingPlayer audio={recording.audio} durationSec={recording.durationSec} /></RecordingPanel>
-      {/* TODO(backend): DEMO_TRANSCRIPT 대신 녹음별 전사 응답을 표시하고 처리 중·실패·미연결 상태를 구분한다. */}
-      <RecordingPanel title="전사"><span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">시연용 예시</span><p className="text-[15px]">{DEMO_TRANSCRIPT}</p><p className="mt-3 text-[12px] text-ink-sub">모든 녹음에 동일한 예시를 표시해요. 실제 음성 인식 결과는 아니에요.</p></RecordingPanel>
       <RecordingPanel title="정리 항목">
         <p className="mb-4 text-[13px] text-ink-sub">시연용 예시로 채워 두었어요. 항목을 바꾸면 자동 저장돼요. 실제 음성·차량 데이터 분석 결과는 아니에요.</p>
         <fieldset className="flex flex-col gap-5"><legend className="sr-only">정리 항목 선택</legend>{(Object.entries(FIELD_CONFIG) as [StructuredFieldKey, (typeof FIELD_CONFIG)[StructuredFieldKey]][]).map(([key, config]) => {
@@ -93,11 +91,13 @@ export default function RecordingDetail({ supervisorName, recording, session, po
           </div>;
         })}</fieldset>
       </RecordingPanel>
+      <RecordingPanel title="메모"><label htmlFor="recording-note" className="mb-2 block text-[13px] text-ink-sub">사건 맥락이나 확인할 내용을 남겨 주세요.</label><textarea id="recording-note" name="recording-note" value={draft.note} onChange={event => { const note = event.target.value; change(current => ({ ...current, note })); }} rows={4} maxLength={5000} className={`${control} resize-y`} /></RecordingPanel>
+      {/* TODO(backend): DEMO_TRANSCRIPT 대신 녹음별 전사 응답을 표시하고 처리 중·실패·미연결 상태를 구분한다. */}
+      <RecordingFold title="전사" badge="시연용 예시"><p className="text-[15px]">{DEMO_TRANSCRIPT}</p><p className="mt-3 text-[12px] text-ink-sub">모든 녹음에 동일한 예시를 표시해요. 실제 음성 인식 결과는 아니에요.</p></RecordingFold>
       <RecordingLocationMap location={recording.location} />
       <RecordingVideo durationSec={recording.durationSec} />
       {/* TODO(backend): 녹음 시각·회차와 연결된 차량 로그(이전 동작·속도·차선·저크 등)를 서버에서 조회해 표시한다. 기기 위치를 차량 GPS로 대체 사용하지 않는다. */}
-      <RecordingPanel title="차량 데이터">
-        <span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">임시 데이터</span>
+      <RecordingFold title="차량 데이터" badge="임시 데이터">
         <h3 className="text-[14px] font-bold">차량에서 수집할 수 있는 항목</h3>
         <p className="mt-2 text-[13px] text-ink-sub">모든 녹음에 동일한 예시를 표시해요. 실제 차량과는 연결되지 않았으며, 위 지도에 표시하는 기기 위치와도 별개예요.</p>
         <dl className="mt-3 divide-y divide-line">
@@ -106,8 +106,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
             <dd className="min-w-0 text-right text-[14px] font-bold tabular-nums [overflow-wrap:anywhere]"><span className="mr-1 text-[11px] font-normal text-ink-sub">예시</span>{value}</dd>
           </div>)}
         </dl>
-      </RecordingPanel>
-      <RecordingPanel title="메모"><label htmlFor="recording-note" className="mb-2 block text-[13px] text-ink-sub">사건 맥락이나 확인할 내용을 남겨 주세요.</label><textarea id="recording-note" name="recording-note" value={draft.note} onChange={event => { const note = event.target.value; change(current => ({ ...current, note })); }} rows={4} maxLength={5000} className={`${control} resize-y`} /></RecordingPanel>
+      </RecordingFold>
       <p className="px-1 py-2 text-[12px] text-ink-sub">수정 내용은 이 브라우저에 자동 저장돼요. 원본 음성은 바꾸지 않아요.</p>
     </div>
   </RecordingFrame>;

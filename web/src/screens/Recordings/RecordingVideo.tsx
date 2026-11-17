@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Pause, Play, Video } from "lucide-react";
 import { formatTime } from "@/lib/formatTime";
 import { focusStyle } from "@/lib/recordingPresentation";
-import { RecordingPanel } from "./RecordingChrome";
+import { RecordingFold } from "./RecordingChrome";
 
 /**
  * 녹음 중 차량 영상 항목 (시연용 모양만 구현).
@@ -30,8 +30,7 @@ export default function RecordingVideo({ durationSec }: { durationSec: number })
   const progress = durationSec > 0 ? (position / durationSec) * 100 : 0;
 
   return (
-    <RecordingPanel title="녹음 중 차량 영상">
-      <span className="mb-3 inline-block rounded-full bg-kakao-soft px-3 py-1 text-[12px] font-bold">시연용 예시</span>
+    <RecordingFold title="녹음 중 차량 영상" badge="시연용 예시">
       <div className="relative flex aspect-video w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-button bg-ink text-white/70">
         <Video className="size-8" aria-hidden="true" />
         <p className="text-[13px]">차량 영상이 연결되지 않은 화면이에요</p>
@@ -53,6 +52,6 @@ export default function RecordingVideo({ durationSec }: { durationSec: number })
         {playing ? "일시정지" : "영상 재생 (시연)"}
       </button>
       <p className="mt-2 text-[12px] text-ink-sub">실제 영상이 아니에요. 차량과 연결되면 녹음 시각에 맞춘 영상이 여기에 표시돼요.</p>
-    </RecordingPanel>
+    </RecordingFold>
   );
 }

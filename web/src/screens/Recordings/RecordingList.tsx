@@ -35,18 +35,18 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
 
   return <RecordingFrame>
     <RecordingHeader title="녹음 목록" backLabel="대기" onBack={onBack} />
-    <div className="flex flex-col gap-4 px-5 pt-5">
+    <div className="flex flex-col gap-3 px-5 pt-4">
       <p className="text-[14px] text-ink-sub [overflow-wrap:anywhere]">{supervisorName}의 녹음이에요. 정차 후 확인해 주세요.</p>
       <div role="group" aria-label="녹음 범위" className="grid grid-cols-2 gap-1 rounded-button bg-line p-1">
         {([['all', '전체 녹음'], ['session', '이번 회차']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={options.scope === value} onClick={() => change({ scope: value })} className={`min-h-11 rounded-[9px] text-[14px] font-bold ${focusStyle} ${options.scope === value ? "bg-white text-ink shadow-sm" : "text-ink-sub"}`}>{label}</button>)}
       </div>
       <div>
-        <label htmlFor="recording-search" className="mb-2 block text-[13px] font-bold">녹음 검색</label>
+        <label htmlFor="recording-search" className="sr-only">녹음 검색</label>
         <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="전사·정리 항목·주소 등으로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label htmlFor="recording-status" className="mb-2 block text-[13px] font-bold">검토 상태</label><select id="recording-status" value={options.status} onChange={event => change({ status: event.target.value as ListOptions['status'] })} className={`${control} w-full`}><option value="all">전체 상태</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-        <div><label htmlFor="recording-sort" className="mb-2 block text-[13px] font-bold">정렬</label><select id="recording-sort" value={options.sort} onChange={event => change({ sort: event.target.value as ListOptions['sort'] })} className={`${control} w-full`}><option value="latest">최신순</option><option value="oldest">오래된순</option></select></div>
+        <div><label htmlFor="recording-status" className="sr-only">검토 상태</label><select id="recording-status" value={options.status} onChange={event => change({ status: event.target.value as ListOptions['status'] })} className={`${control} w-full`}><option value="all">전체 상태</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+        <div><label htmlFor="recording-sort" className="sr-only">정렬</label><select id="recording-sort" value={options.sort} onChange={event => change({ sort: event.target.value as ListOptions['sort'] })} className={`${control} w-full`}><option value="latest">최신순</option><option value="oldest">오래된순</option></select></div>
       </div>
       {loading ? <p role="status" className="py-10 text-center text-[14px] text-ink-sub">녹음을 불러오는 중이에요…</p> : error ? <div role="alert" className="rounded-card bg-white p-5"><p>녹음을 읽지 못했어요. 다시 시도해 주세요.</p><button type="button" onClick={onRetry} className={`mt-3 min-h-11 rounded-button bg-kakao px-4 font-bold ${focusStyle}`}>다시 불러오기</button></div> : <>
         <p role="status" className="text-[13px] font-semibold text-ink-sub">{options.scope === "session" ? (currentSession ? `${currentSession.number}회차` : "시작한 운행 없음") : "전체 녹음"} · {list.length.toLocaleString("ko-KR")}건</p>
@@ -57,7 +57,7 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
           return <section key={sessionId} aria-label={label}><h2 className="mb-3 text-[15px] font-extrabold text-ink">{label}</h2><div className="flex flex-col gap-3">{records.map(record => {
           const session = record.sessionId ? sessionById.get(record.sessionId) : undefined;
           const status = record.review?.status ?? "new";
-          return <button key={record.id} type="button" onClick={() => onOpen(record.id)} className={`relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left hover:border-ink-sub active:bg-kakao-soft ${focusStyle}`}>
+          return <button key={record.id} type="button" onClick={() => onOpen(record.id)} className={`relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left shadow-card transition-[background-color,scale] duration-150 hover:border-ink-sub active:scale-[0.99] active:bg-kakao-soft ${focusStyle}`}>
             <span className="flex w-full min-w-0 items-center gap-3">
               <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-ok-soft text-ok-ink" : status === "flagged" ? "bg-warning-soft text-warning-ink" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
               {/* TODO(backend): 저장된 녹음 위치의 좌표를 주소로 변환한 서버 응답으로 교체한다. 현재는 위치 유무와 관계없는 표시용 예시이며 원본에 저장하지 않는다. */}
