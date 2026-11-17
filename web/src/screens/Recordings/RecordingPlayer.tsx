@@ -41,6 +41,6 @@ export default function RecordingPlayer({ audio, durationSec }: { audio: Blob; d
         }} className={`min-h-11 w-full accent-ink ${focusStyle}`} />
       </div>
     </div>
-    {error && <p role="alert" className="mt-3 text-[13px] text-[#b42318]">{error}</p>}
+    {error && <p role="alert" className="mt-3 text-[13px] text-danger-ink">{error}</p>}
   </div>;
 }

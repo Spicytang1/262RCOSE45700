@@ -44,7 +44,7 @@ export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor, s
 
       <section className="flex flex-1 flex-col justify-center py-9">
         <div className="mb-8">
-          <h1 ref={heading} tabIndex={-1} className="rounded text-[28px] leading-[1.4] font-extrabold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink">
+          <h1 ref={heading} tabIndex={-1} className="text-[28px] leading-[1.4] font-extrabold tracking-tight outline-none">
             번호 4자리를<br />입력해 주세요
           </h1>
           <p className="mt-3 text-[15px] text-ink-sub">
@@ -52,14 +52,14 @@ export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor, s
           </p>
         </div>
 
-        <div className="mb-2 flex justify-center gap-5 rounded-card bg-surface py-6" role="status" aria-label={`번호 4자리 중 ${pin.length}자리 입력됨`}>
-          {[0, 1, 2, 3].map((index) => <span key={index} aria-hidden="true" className={`size-4 rounded-full ${index < pin.length ? "bg-ink" : "border-2 border-ink-sub/40"}`} />)}
+        <div className={`mb-2 flex justify-center gap-6 rounded-card bg-surface py-7 ${error ? "animate-shake motion-reduce:animate-none" : ""}`} role="status" aria-label={`번호 4자리 중 ${pin.length}자리 입력됨`}>
+          {[0, 1, 2, 3].map((index) => <span key={index} aria-hidden="true" className={`size-[18px] rounded-full transition-colors duration-150 ${index < pin.length ? "bg-ink" : "border-2 border-ink-sub/40"}`} />)}
         </div>
-        <p role={error ? "alert" : "status"} className={`mb-3 min-h-12 text-center text-[13px] leading-[1.7] ${error ? "text-[#b42318]" : "text-ink-sub"}`}>{error || (busy ? "로그인 정보를 확인하고 있어요…" : "")}</p>
+        <p role={error ? "alert" : "status"} className={`mb-3 min-h-12 text-center text-[13px] leading-[1.7] ${error ? "text-danger-ink" : "text-ink-sub"}`}>{error || (busy ? "로그인 정보를 확인하고 있어요…" : "")}</p>
         <div className="grid grid-cols-3 gap-3" aria-label="숫자 키패드">
           {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "delete"].map((digit, index) => (
             digit === "" ? <span key={`blank-${index}`} /> : (
-              <button key={digit} type="button" aria-label={digit === "delete" ? "한 자리 지우기" : digit} disabled={busy || (digit === "delete" && !pin.length)} onClick={() => { if (digit === "delete") { setPin((value) => value.slice(0, -1)); setError(""); } else void enterDigit(digit); }} className={`flex h-16 items-center justify-center rounded-button text-[27px] font-bold tabular-nums transition-colors active:bg-kakao disabled:opacity-30 ${digit === "delete" ? "bg-transparent" : "bg-surface hover:bg-line"} ${focusStyle}`}>
+              <button key={digit} type="button" aria-label={digit === "delete" ? "한 자리 지우기" : digit} disabled={busy || (digit === "delete" && !pin.length)} onClick={() => { if (digit === "delete") { setPin((value) => value.slice(0, -1)); setError(""); } else void enterDigit(digit); }} className={`flex h-[68px] items-center justify-center rounded-button text-[28px] font-bold tabular-nums transition-[background-color,scale] duration-150 active:scale-[0.96] active:bg-kakao disabled:opacity-30 ${digit === "delete" ? "bg-transparent" : "bg-surface hover:bg-line"} ${focusStyle}`}>
                 {digit === "delete" ? <Delete className="size-6" aria-hidden="true" /> : digit}
               </button>
             )

@@ -59,7 +59,7 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
           const status = record.review?.status ?? "new";
           return <button key={record.id} type="button" onClick={() => onOpen(record.id)} className={`relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left hover:border-ink-sub active:bg-kakao-soft ${focusStyle}`}>
             <span className="flex w-full min-w-0 items-center gap-3">
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-[#e8f5ed] text-[#17633b]" : status === "flagged" ? "bg-[#fff0e5] text-[#944000]" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-ok-soft text-ok-ink" : status === "flagged" ? "bg-warning-soft text-warning-ink" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
               {/* TODO(backend): 저장된 녹음 위치의 좌표를 주소로 변환한 서버 응답으로 교체한다. 현재는 위치 유무와 관계없는 표시용 예시이며 원본에 저장하지 않는다. */}
               <span className="shrink-0 whitespace-nowrap text-[13px] font-bold text-ink">{DEMO_ADDRESS} <span className="text-[10px] font-normal text-ink-sub">(임시 주소)</span></span>
             </span>

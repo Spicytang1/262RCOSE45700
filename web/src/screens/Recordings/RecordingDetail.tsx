@@ -50,7 +50,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
       </section>
       <div className="rounded-card border border-line bg-white px-4 py-3">
         <p role="status" className="text-[13px] font-semibold text-ink-sub">{phase === "saved" ? "변경 내용을 자동 저장했어요." : phase === "error" ? "자동 저장을 완료하지 못했어요." : phase === "saving" ? "자동 저장 중이에요…" : "변경 내용을 반영하고 있어요…"}</p>
-        {phase === "error" && <><p role="alert" className="mt-2 text-[13px] text-[#b42318]">입력 내용은 유지하고 있어요. 저장 공간을 확인한 뒤 다시 시도해 주세요. 저장 전에는 이 화면을 닫지 마세요.</p><Button onClick={() => void flush()} className={`mt-3 w-full ${focusStyle}`}>저장 다시 시도</Button></>}
+        {phase === "error" && <><p role="alert" className="mt-2 text-[13px] text-danger-ink">입력 내용은 유지하고 있어요. 저장 공간을 확인한 뒤 다시 시도해 주세요. 저장 전에는 이 화면을 닫지 마세요.</p><Button onClick={() => void flush()} className={`mt-3 w-full ${focusStyle}`}>저장 다시 시도</Button></>}
       </div>
       <fieldset className="contents">
         <legend className="sr-only">검토 상태와 녹음 제목</legend>

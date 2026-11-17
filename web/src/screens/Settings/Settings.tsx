@@ -89,7 +89,7 @@ export default function Settings({ profile, onBack }: { profile: Supervisor; onB
           </div>
           <p className="text-[12px] text-ink-sub">JPG·PNG·WebP, 10MB 이하 · 가운데를 정사각형으로 잘라요.</p>
           <div><label htmlFor="profile-name" className="mb-2 block text-[14px] font-bold">감독관 이름 *</label><input id="profile-name" name="profile-name" required aria-invalid={!!profileError} autoComplete="name" value={name} maxLength={40} disabled={busy} onChange={event => { setName(event.target.value); setProfileNotice(""); setProfileError(""); }} className={control} /></div>
-          {profileError && <p role="alert" className="text-[13px] text-[#b42318]">{profileError}</p>}
+          {profileError && <p role="alert" className="text-[13px] text-danger-ink">{profileError}</p>}
           {profileNotice && <p role="status" className="text-[13px] text-ink-sub">{profileNotice}</p>}
           <button type="submit" disabled={busy || !profileDirty} className={`min-h-12 rounded-button bg-kakao px-4 font-bold disabled:opacity-40 ${focusStyle}`}>이름·사진 적용</button>
         </form>
@@ -98,7 +98,7 @@ export default function Settings({ profile, onBack }: { profile: Supervisor; onB
         <form onSubmit={event => void changePassword(event)} noValidate className="flex flex-col gap-4">
           <p className="text-[13px] text-ink-sub">숫자 4자리로 설정해 주세요. 시연용 번호이며 실제 접근을 보호하지 않아요.</p>
           {([['current', '현재 비밀번호'], ['next', '새 비밀번호'], ['repeat', '새 비밀번호 재입력']] as const).map(([key, label]) => <div key={key}><label htmlFor={`pin-${key}`} className="mb-2 block text-[14px] font-bold">{label} *</label><input id={`pin-${key}`} name={`pin-${key}`} required type="password" inputMode="numeric" pattern="[0-9]{4}" autoComplete={key === 'current' ? 'current-password' : 'new-password'} maxLength={4} value={pins[key]} disabled={busy} onChange={event => { const value = event.target.value.replace(/\D/g, "").slice(0, 4); setPins(current => ({ ...current, [key]: value })); setPasswordError(""); setPasswordNotice(""); }} className={control} /></div>)}
-          {passwordError && <p role="alert" className="text-[13px] text-[#b42318]">{passwordError}</p>}
+          {passwordError && <p role="alert" className="text-[13px] text-danger-ink">{passwordError}</p>}
           {passwordNotice && <p role="status" className="text-[13px] text-ink-sub">{passwordNotice}</p>}
           <button type="submit" disabled={busy} className={`min-h-12 rounded-button bg-ink px-4 font-bold text-white disabled:opacity-40 ${focusStyle}`}>{passwordBusy ? "변경 중…" : "비밀번호 변경"}</button>
         </form>

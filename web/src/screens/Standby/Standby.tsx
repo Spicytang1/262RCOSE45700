@@ -30,14 +30,14 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
       <header className="flex items-center justify-between">
         <h1 className="text-[20px] font-extrabold tracking-tight">주행 이슈 리포트</h1>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-[13px] font-semibold text-ink-sub">
-          <span className={`size-2 rounded-full ${active ? "bg-[#16a55c]" : "bg-ink-sub"}`} aria-hidden="true" />
+          <span className={`size-2 rounded-full ${active ? "bg-ok" : "bg-ink-sub"}`} aria-hidden="true" />
           {loadState === "loading" ? "확인 중" : active ? "운행 중" : "운행 대기"}
         </span>
       </header>
 
       <section
         aria-label="감독관과 보관 기록"
-        className="mt-5 grid grid-cols-2 divide-x divide-line overflow-hidden rounded-card bg-surface"
+        className="mt-5 grid grid-cols-2 divide-x divide-line overflow-hidden rounded-card bg-surface shadow-card"
       >
         <div className="flex flex-col items-center gap-1 py-5">
           <span className="text-[13px] font-medium text-ink-sub">현재 감독관</span>
@@ -47,8 +47,8 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
         </div>
         <button type="button" onClick={onOpenRecordings} disabled={actionState === "busy"} className="flex flex-col items-center justify-center gap-1 py-5 hover:bg-kakao-soft active:bg-kakao focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ink disabled:opacity-40">
           <span className="text-[13px] font-medium text-ink-sub">이번 회차 녹음</span>
-          <span aria-live="polite" className="text-[26px] font-extrabold">
-            {loadState === "error" ? <span className="text-[14px] text-[#b42318]">건수 확인 불가</span> : loadState === "loading" ? <span className="text-[14px] text-ink-sub">불러오는 중…</span> : <>{recordingCount.toLocaleString("ko-KR")}<span className="ml-0.5 text-[16px] font-bold">건</span></>}
+          <span aria-live="polite" className="text-[32px] leading-none font-extrabold tabular-nums">
+            {loadState === "error" ? <span className="text-[14px] text-danger-ink">건수 확인 불가</span> : loadState === "loading" ? <span className="text-[14px] text-ink-sub">불러오는 중…</span> : <>{recordingCount.toLocaleString("ko-KR")}<span className="ml-0.5 text-[16px] font-bold">건</span></>}
           </span>
           <span className="flex min-h-11 items-center gap-0.5 text-[12px] font-semibold text-ink-sub">녹음 목록 보기<ChevronRight className="size-3.5" aria-hidden="true" /></span>
         </button>
@@ -58,7 +58,7 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
         {notice || (loadState === "error" ? "운행과 녹음을 읽지 못했어요." : loadState === "loading" ? "운행 정보를 확인하고 있어요…" : session ? `${session.number}회차 ${active ? "운행 중이에요. 상황이 안정된 후 녹음해 주세요." : "운행이 끝났어요. 녹음 목록에서 기록을 확인해 주세요."}` : "운행을 시작하면 이번 회차의 녹음을 남길 수 있어요.")}
       </p>
       {loadState === "error" && <button type="button" onClick={onRetry} className={`min-h-11 rounded-button bg-surface font-bold ${focusStyle}`}>다시 불러오기</button>}
-      {actionError && <p role="alert" className="mt-2 text-[13px] text-[#b42318]">{actionError}</p>}
+      {actionError && <p role="alert" className="mt-2 text-[13px] text-danger-ink">{actionError}</p>}
 
       <section aria-label="음성 기록" className="flex flex-1 flex-col items-center justify-center gap-14 py-10">
         <div className="relative flex items-center justify-center">
@@ -70,9 +70,9 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
             type="button"
             onClick={active ? onStart : onStartSession}
             disabled={disabled || checkingPermissions}
-            className={`relative flex size-44 flex-col items-center justify-center gap-2 rounded-full transition-transform active:scale-95 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ink ${active ? "bg-kakao text-ink shadow-[0_10px_30px_rgba(254,229,0,0.45)] hover:bg-kakao-press active:bg-kakao-press" : "bg-[#167347] text-white shadow-[0_10px_30px_rgba(22,115,71,0.22)] hover:bg-[#125f3b] active:bg-[#0e4c2f]"}`}
+            className={`relative flex size-44 flex-col items-center justify-center gap-2 rounded-full transition-[scale,background-color] duration-150 active:scale-[0.96] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ink ${active ? "bg-kakao text-ink shadow-[0_10px_30px_rgba(254,229,0,0.45)] hover:bg-kakao-press active:bg-kakao-press" : "bg-ink text-white shadow-[0_10px_30px_rgba(25,25,25,0.22)] hover:bg-ink-sub active:bg-ink-sub"}`}
           >
-            {active ? <Mic className="size-12" strokeWidth={2.2} aria-hidden="true" /> : <Play className="size-10" strokeWidth={2.2} aria-hidden="true" />}
+            {active ? <Mic className="size-12" strokeWidth={2.2} aria-hidden="true" /> : <Play className="size-10 fill-kakao text-kakao" strokeWidth={2.2} aria-hidden="true" />}
             <span className="text-[19px] font-extrabold">{actionState === "busy" ? "처리 중…" : active ? "녹음" : "운행 시작"}</span>
           </button>
         </div>
