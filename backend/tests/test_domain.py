@@ -28,7 +28,8 @@ def test_guide_questions_follow_taxonomy() -> None:
     assert "pedestrian" not in question_ids
     taxonomy = load_taxonomy()
     spoken = {item.key for item in taxonomy.guide["ego_action_before"].options}
-    assert "u_turn" not in spoken
+    assert "u_turn" in spoken
+    assert "departure" not in spoken
 
 
 def test_eval_script_can_read_test_split() -> None:

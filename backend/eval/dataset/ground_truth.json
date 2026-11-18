@@ -74,7 +74,7 @@
       "high/높음"
     ],
     "taxonomy_gaps_vs_kakao_guide": [
-      "ego_action_before missing 유턴 and 출발",
+      "ego_action_before missing 출발",
       "ego_reaction missing 테이크오버/수동개입/디스인게이지먼트 and gentle 감속",
       "target_type has no 라바콘/공사구간 object (공사구간 is an event type only)"
     ],
@@ -1088,8 +1088,7 @@
         },
         "prior_maneuver": {
           "key": "u_turn",
-          "label": "유턴",
-          "in_taxonomy": false
+          "label": "유턴"
         },
         "target": {
           "key": "vehicle",
@@ -1111,11 +1110,10 @@
         "relative_time": "방금"
       },
       "taxonomy_gaps": [
-        "ego_action_before:유턴 (Kakao guide lists it; taxonomy v1 does not)",
         "ego_reaction:테이크오버/수동개입 (not in taxonomy)"
       ],
       "tags": [],
-      "notes": "유턴 is also absent from event_types, so issue_type is other."
+      "notes": "Prior maneuver is 유턴. issue_type stays other because 유턴 is not an event type."
     },
     {
       "id": "s30",
@@ -1313,8 +1311,7 @@
         },
         "prior_maneuver": {
           "key": "u_turn",
-          "label": "유턴",
-          "in_taxonomy": false
+          "label": "유턴"
         },
         "target": {
           "key": "two_wheeler",
@@ -1334,11 +1331,9 @@
         },
         "relative_time": "아까"
       },
-      "taxonomy_gaps": [
-        "ego_action_before:유턴"
-      ],
+      "taxonomy_gaps": [],
       "tags": [],
-      "notes": "Road type inferred; 유턴 typically at an intersection."
+      "notes": "Prior maneuver is 유턴. Road type inferred; 유턴 typically at an intersection."
     },
     {
       "id": "s36",
