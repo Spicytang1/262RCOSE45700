@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import Login from "@/screens/Login/Login";
 import Standby from "@/screens/Standby/Standby";
@@ -7,6 +7,7 @@ import Record, { type FinishReason } from "@/screens/Record/Record";
 import Button from "@/components/Button";
 import ConfirmSheet from "@/components/ConfirmSheet";
 import StateView from "@/components/StateView";
+import PageTransition from "@/components/PageTransition";
 import { endSession, getSessions, saveRecording, startSession } from "@/lib/recordingStore";
 import useRecordingData from "@/lib/useRecordingData";
 import useRecordingRoute, { navigateRecordings, navigateStandby } from "@/lib/useRecordingRoute";
@@ -227,8 +228,10 @@ export default function App() {
 
   */
 
+  const page = (key: string, depth: number, node: ReactNode, order = 0) => <PageTransition pageKey={key} depth={depth} order={order}>{node}</PageTransition>;
+
   if (pending) {
-    return (
+    return page("saving", 4, (
       <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col justify-center bg-white px-6 py-8 leading-[1.8]">
         {saveError
           ? <span className="mb-5 flex size-14 items-center justify-center rounded-full bg-warning-soft text-warning-ink" aria-hidden="true"><AlertCircle className="size-7" /></span>
@@ -239,15 +242,15 @@ export default function App() {
         </p>
         {saveError && <Button onClick={() => void commitRecording(pending)} disabled={saving} className="mt-6 focus-visible:outline-2 focus-visible:outline-offset-4">보관 다시 시도</Button>}
       </main>
-    );
+    ));
   }
 
   if (screen === "login" || supervisorId === null || !profile) {
-    return <Login onLogin={loginSupervisor} />;
+    return page("login", 0, <Login onLogin={loginSupervisor} />);
   }
 
   if (screen === "record") {
-    return <Record onFinish={handleFinish} onCancel={cancelRecording} />;
+    return page("record", 2, <Record onFinish={handleFinish} onCancel={cancelRecording} />);
   }
 
   //추가녹음 화면 (미사용)
@@ -272,23 +275,23 @@ export default function App() {
   }
     */
 
-  if (route.page === "settings") return <Settings profile={profile} onBack={navigateStandby} />;
+  if (route.page === "settings") return page("settings", 2, <Settings profile={profile} onBack={navigateStandby} />);
 
   if (route.page === "list") {
-    return <RecordingList supervisorName={profile.name} recordings={data.recordings} sessions={data.sessions} currentSession={currentSession} options={listOptions} onOptions={setListOptions} onOpen={navigateRecordings} onBack={navigateStandby} loading={data.loading} error={data.error} onRetry={() => void data.reload()} />;
+    return page("list", 2, <RecordingList supervisorName={profile.name} recordings={data.recordings} sessions={data.sessions} currentSession={currentSession} options={listOptions} onOptions={setListOptions} onOpen={navigateRecordings} onBack={navigateStandby} loading={data.loading} error={data.error} onRetry={() => void data.reload()} />);
   }
 
   if (route.page === "detail") {
     const record = data.recordings.find(item => item.id === route.id);
-    if (data.error || (!record && data.loading)) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5">{data.error ? <StateView kind="error" message="녹음을 불러오지 못했어요. 다시 시도해 주세요." onRetry={() => void data.reload()} /> : <StateView kind="loading" message="녹음을 불러오는 중이에요…" />}</div></RecordingFrame>;
-    if (!record) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5"><StateView kind="empty" title="녹음을 찾을 수 없어요" message="이 감독관의 녹음 목록에 없는 녹음이에요." /></div></RecordingFrame>;
+    if (data.error || (!record && data.loading)) return page(`detail:${route.id}`, 3, <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="뒤로가기" onBack={() => navigateRecordings()} /><div className="p-5">{data.error ? <StateView kind="error" message="녹음을 불러오지 못했어요. 다시 시도해 주세요." onRetry={() => void data.reload()} /> : <StateView kind="loading" message="녹음을 불러오는 중이에요…" />}</div></RecordingFrame>);
+    if (!record) return page(`detail:${route.id}`, 3, <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="뒤로가기" onBack={() => navigateRecordings()} /><div className="p-5"><StateView kind="empty" title="녹음을 찾을 수 없어요" message="이 감독관의 녹음 목록에 없는 녹음이에요." /></div></RecordingFrame>);
     const filtered = filteredRecordings(data.recordings, currentSession, listOptions);
     const siblings = filtered.some(item => item.id === record.id) ? filtered : data.recordings;
     const index = siblings.findIndex(item => item.id === record.id);
-    return <RecordingDetail key={record.id} supervisorName={profile.name} recording={record} session={data.sessions.find(session => session.id === record.sessionId)} position={index + 1} total={siblings.length} previousId={siblings[index - 1]?.id} nextId={siblings[index + 1]?.id} onOpen={navigateRecordings} onBack={() => navigateRecordings()} onSaved={() => void data.reload()} />;
+    return page(`detail:${record.id}`, 3, <RecordingDetail key={record.id} supervisorName={profile.name} recording={record} session={data.sessions.find(session => session.id === record.sessionId)} position={index + 1} total={siblings.length} previousId={siblings[index - 1]?.id} nextId={siblings[index + 1]?.id} onOpen={navigateRecordings} onBack={() => navigateRecordings()} onSaved={() => void data.reload()} />, index);
   }
 
-  return <>
+  return page("standby", 1, <>
   <Standby
     permissions={drivePermissions}
     profile={profile}
@@ -306,5 +309,5 @@ export default function App() {
     onChangeSupervisor={changeSupervisor}
   />
   {confirmEnd && <ConfirmSheet title={confirmEnd === "switch" ? "운행을 종료하고 감독관을 바꿀까요?" : "이번 운행을 종료할까요?"} message="보관한 녹음은 그대로 남아요." confirmLabel={confirmEnd === "switch" ? "종료하고 바꾸기" : "운행 종료"} onCancel={() => setConfirmEnd(null)} onConfirm={() => { const mode = confirmEnd; setConfirmEnd(null); void (mode === "switch" ? changeSession("end", true) : changeSession("end")); }} />}
-  </>;
+  </>);
 }

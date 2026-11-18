@@ -67,7 +67,7 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className={`rounded-[16px] px-3.5 py-3 ${active ? "bg-white/10" : "bg-surface"}`}>
+            <div key={active ? "driving" : "idle"} className={`fade-in rounded-[16px] px-3.5 py-3 ${active ? "bg-white/10" : "bg-surface"}`}>
               <p className={`text-[11px] font-semibold ${active ? "text-white/60" : "text-ink-muted"}`}>{active ? `${session?.number}회차 운행 시간` : session ? `${session.number}회차 종료` : "운행"}</p>
               <p className="mt-0.5 text-[22px] leading-tight font-extrabold tracking-tight tabular-nums">{active ? clock(elapsed) : loadState === "loading" ? "..." : "대기"}</p>
             </div>
@@ -85,7 +85,7 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
       </section>
 
       <div className="rise mx-5 mt-2" style={rise(120)}>
-        {message && <p role="status" className={`rounded-[14px] px-4 py-2 text-center text-[13px] leading-[1.6] ${notice ? "bg-kakao-soft text-ink" : "text-ink-sub"}`}>{message}</p>}
+        {message && <p key={message} role="status" className={`fade-in rounded-[14px] px-4 py-2 text-center text-[13px] leading-[1.6] ${notice ? "bg-kakao-soft text-ink" : "text-ink-sub"}`}>{message}</p>}
         {loadState === "error" && <button type="button" onClick={onRetry} className={`mt-2 min-h-11 w-full rounded-button bg-white font-bold shadow-card ${focusStyle}`}>다시 불러오기</button>}
         {actionError && <p role="alert" className="mt-2 text-[13px] text-danger-ink">{actionError}</p>}
       </div>
@@ -93,10 +93,11 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
       <section aria-label="음성 기록" className="rise flex flex-1 flex-col px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]" style={rise(180)}>
         <div className="relative flex min-h-[clamp(150px,34dvh,420px)] flex-1 items-center justify-center">
           <button
+            key={active ? "record" : "start"}
             type="button"
             onClick={active ? onStart : onStartSession}
             disabled={disabled || checkingPermissions}
-            className={`relative flex size-[clamp(150px,min(38dvh,78vw),300px)] flex-col items-center justify-center gap-[clamp(6px,2dvh,16px)] rounded-full font-extrabold tracking-tight leading-none transition-[scale,background-color] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink ${active ? "bg-kakao text-[clamp(26px,4.6dvh,38px)] text-ink shadow-[0_18px_40px_rgba(254,229,0,0.45)] ring-[10px] ring-kakao/30 hover:bg-kakao-press active:bg-kakao-press" : "bg-ink text-[clamp(22px,4dvh,32px)] text-white shadow-[0_18px_40px_rgba(25,25,25,0.26)] ring-[10px] ring-ink/10 hover:bg-ink-sub active:bg-ink-sub"}`}
+            className={`pop-in relative flex size-[clamp(150px,min(38dvh,78vw),300px)] flex-col items-center justify-center gap-[clamp(6px,2dvh,16px)] rounded-full font-extrabold tracking-tight leading-none transition-[scale,background-color] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink ${active ? "bg-kakao text-[clamp(26px,4.6dvh,38px)] text-ink shadow-[0_18px_40px_rgba(254,229,0,0.45)] ring-[10px] ring-kakao/30 hover:bg-kakao-press active:bg-kakao-press" : "bg-ink text-[clamp(22px,4dvh,32px)] text-white shadow-[0_18px_40px_rgba(25,25,25,0.26)] ring-[10px] ring-ink/10 hover:bg-ink-sub active:bg-ink-sub"}`}
           >
             <span className={`flex items-center justify-center rounded-full ${active ? "size-[clamp(48px,11dvh,104px)] bg-ink/10" : "size-[clamp(44px,9dvh,88px)] bg-white/10"}`}>
               {active ? <Mic className="size-[52%]" strokeWidth={2.2} aria-hidden="true" /> : <Play className="size-[46%] fill-kakao text-kakao" strokeWidth={2.2} aria-hidden="true" />}
@@ -104,7 +105,7 @@ export default function Standby({ permissions, onStart, profile, recordingCount,
             {actionState === "busy" ? "처리 중" : active ? "녹음" : "운행 시작"}
           </button>
         </div>
-        {active && <button type="button" onClick={onEndSession} disabled={disabled} className={`mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-[20px] border-2 border-ink/25 bg-white text-[16px] font-bold text-ink shadow-card transition-[background-color,scale,border-color] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] hover:border-ink/50 active:scale-[0.98] active:bg-line disabled:opacity-40 ${focusStyle}`}><Square className="size-4 fill-current" aria-hidden="true" />운행 종료</button>}
+        {active && <button type="button" onClick={onEndSession} disabled={disabled} className={`fade-in mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-[20px] border-2 border-ink/25 bg-white text-[16px] font-bold text-ink shadow-card transition-[background-color,scale,border-color] duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] hover:border-ink/50 active:scale-[0.98] active:bg-line disabled:opacity-40 ${focusStyle}`}><Square className="size-4 fill-current" aria-hidden="true" />운행 종료</button>}
         <p className="mt-3 flex items-start justify-center gap-2 text-[12px] leading-[1.7] text-ink-muted [@media(max-height:700px)]:hidden">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           <span>운행을 시작할 때 마이크와 위치 권한을 확인해요. 위치는 녹음할 때마다 새로 받아요.</span>

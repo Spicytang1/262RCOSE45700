@@ -7,9 +7,10 @@ export function RecordingFrame({ children, tone = "surface" }: { children: React
 }
 
 export function RecordingHeader({ title, backLabel, onBack }: { title: string; backLabel: string; onBack: () => void }) {
-  return <header className="flex items-center gap-3 border-b border-line bg-white px-4 py-4">
-    <button type="button" onClick={onBack} aria-label={backLabel} className={`flex min-h-11 shrink-0 items-center rounded-button bg-surface pr-3 pl-1 text-[13px] font-bold ${focusStyle}`}><ChevronLeft className="size-5" aria-hidden="true" />{backLabel}</button>
+  return <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-line bg-white px-4 py-4">
+    <button type="button" onClick={onBack} aria-label={backLabel} className={`flex min-h-11 items-center justify-self-start rounded-button bg-surface pr-3 pl-1 text-[13px] font-bold ${focusStyle}`}><ChevronLeft className="size-5" aria-hidden="true" />{backLabel}</button>
     <h1 className="text-[21px] font-extrabold tracking-tight">{title}</h1>
+    <span aria-hidden="true" />
   </header>;
 }
 
@@ -24,6 +25,6 @@ export function RecordingFold({ title, badge, onOpen, children }: { title: strin
       <Plus className="size-5 shrink-0 text-ink-sub group-open:hidden" strokeWidth={2} aria-hidden="true" />
       <Minus className="hidden size-5 shrink-0 text-ink-sub group-open:block" strokeWidth={2} aria-hidden="true" />
     </summary>
-    <div className="pb-5">{children}</div>
+    <div className="reveal pb-5">{children}</div>
   </details>;
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, List, MapPin, Pencil, Route, Timer, UserRound } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, MapPin, Pencil, Route, Timer, UserRound } from "lucide-react";
 import Button from "@/components/Button";
 import OptionMenu from "@/components/OptionMenu";
 import { dateText, DEMO_TRANSCRIPT, DEMO_VEHICLE_DATA, FIELD_CONFIG, focusStyle, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
@@ -75,7 +75,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
   return <RecordingFrame tone="white">
     <div className="sticky top-0 z-10 border-b border-line bg-white/90 backdrop-blur">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center pr-2 pl-3">
-        <button type="button" onClick={() => void leave(onBack)} aria-label="목록" className={`flex min-h-11 items-center gap-1.5 justify-self-start rounded-button pr-2 text-[14px] font-bold ${focusStyle}`}><List className="size-5" strokeWidth={2} aria-hidden="true" />목록</button>
+        <button type="button" onClick={() => void leave(onBack)} aria-label="뒤로가기" className={`flex min-h-11 items-center gap-1.5 justify-self-start rounded-button pr-2 text-[14px] font-bold ${focusStyle}`}><ArrowLeft className="size-5" strokeWidth={2} aria-hidden="true" />뒤로가기</button>
         <h1 className="text-[16px] font-extrabold tracking-tight">녹음 상세</h1>
         <nav aria-label="녹음 이동" className="flex items-center justify-self-end">
           <button type="button" disabled={!previousId} aria-label="이전 녹음" onClick={() => previousId && void leave(() => onOpen(previousId))} className={`flex size-11 items-center justify-center rounded-button disabled:opacity-30 ${focusStyle}`}><ChevronLeft className="size-5" aria-hidden="true" /></button>
@@ -84,7 +84,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         </nav>
       </div>
       <span role="status" className="sr-only">{phase === "saved" ? "자동 저장됨" : phase === "saving" ? "저장 중" : ""}</span>
-      {phase === "error" && <div className="px-5 pb-3"><p role="alert" className="text-[13px] text-danger-ink">입력한 내용은 그대로 있어요. 저장 공간을 확인하고 다시 시도해 주세요. 저장될 때까지 이 화면을 닫지 마세요.</p><Button onClick={() => void flush()} className={`mt-3 w-full ${focusStyle}`}>저장 다시 시도</Button></div>}
+      {phase === "error" && <div className="fade-in px-5 pb-3"><p role="alert" className="text-[13px] text-danger-ink">입력한 내용은 그대로 있어요. 저장 공간을 확인하고 다시 시도해 주세요. 저장될 때까지 이 화면을 닫지 마세요.</p><Button onClick={() => void flush()} className={`mt-3 w-full ${focusStyle}`}>저장 다시 시도</Button></div>}
     </div>
 
     <section className="rise border-b-2 border-line bg-surface px-5 pt-6 pb-5" style={rise(0)}>
@@ -94,7 +94,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
         <input id="recording-title" name="recording-title" value={draft.title} onChange={event => { const title = event.target.value; change(current => ({ ...current, title })); }} maxLength={120} placeholder={defaultTitle} className="min-w-0 flex-1 bg-transparent text-[34px] leading-[1.2] font-extrabold tracking-tight text-ink outline-none placeholder:text-ink-sub focus-visible:outline-none" />
         <Pencil className="mt-3 size-5 shrink-0 text-ink-muted" strokeWidth={2} aria-hidden="true" />
       </div>
-      {!hasCustomTitle && suggestedTitle && <button type="button" onClick={() => change(current => ({ ...current, title: suggestedTitle }))} className={`mt-3 flex min-h-11 items-center gap-2 rounded-button border border-line bg-white px-3.5 text-left text-[14px] transition-[background-color,scale] duration-150 active:scale-[0.98] active:bg-surface ${focusStyle}`}><span className="shrink-0 font-semibold text-ink-muted">이슈 제목 제안</span><span className="min-w-0 truncate font-extrabold">{suggestedTitle}</span></button>}
+      {!hasCustomTitle && suggestedTitle && <button type="button" onClick={() => change(current => ({ ...current, title: suggestedTitle }))} className={`fade-in mt-3 flex min-h-11 items-center gap-2 rounded-button border border-line bg-white px-3.5 text-left text-[14px] transition-[background-color,scale] duration-150 active:scale-[0.98] active:bg-surface ${focusStyle}`}><span className="shrink-0 font-semibold text-ink-muted">이슈 제목 제안</span><span className="min-w-0 truncate font-extrabold">{suggestedTitle}</span></button>}
       <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-ink-sub">
         {/* TODO(backend): 녹음 좌표를 주소로 변환한 응답으로 교체한다. XX동 XX로는 표시용 임시 주소이며 원본에 저장하지 않는다. */}
         <li title="임시 주소예요. 실제 위치와 연결되지 않았어요." aria-label="주소 XX동 XX로 (임시 주소)" className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />XX동 XX로</li>
@@ -129,7 +129,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
                   <p id={`hint-${key}`} className="sr-only">{config.description}{key === "previousAction" ? " · 차량 데이터 수집을 가정한 예시" : ""}</p>
                 </div>
                 <p className="flex shrink-0 items-center gap-1 text-[18px] font-extrabold tracking-tight">
-                  <span className="max-w-[9em] break-words text-right">{isOther ? (value || "기타") : value}</span>
+                  <span key={isOther ? "other" : value} className="fade-in max-w-[9em] break-words text-right">{isOther ? (value || "기타") : value}</span>
                   <ChevronDown className={`size-4 shrink-0 text-ink-muted transition-transform duration-150 ${menu?.key === key ? "rotate-180" : ""}`} strokeWidth={2} aria-hidden="true" />
                 </p>
                 <button type="button" id={`field-button-${key}`} aria-haspopup="menu" aria-expanded={menu?.key === key} aria-label={`${config.label} ${isOther ? (value || "기타") : value}, 변경`} aria-describedby={`hint-${key}`} onClick={event => menu?.key === key ? closeMenu(key) : openMenu(event.currentTarget, key, config.options.length + 1)} className="absolute inset-0 size-full cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink" />
