@@ -99,7 +99,7 @@ export default function App() {
       else if (activeSession) { await endSession(activeSession.id, supervisorId); clearDrivePermissions(); }
       await data.reload();
       if (logout) logoutSupervisor();
-      else setNotice(action === "start" ? "운행을 시작했어요. 상황이 안정된 후 녹음해 주세요." : "운행을 종료했어요. 녹음 목록에서 기록을 확인해 주세요.");
+      else setNotice(action === "start" ? "운행을 시작했어요. 안전한 상황에서 녹음해 주세요." : "운행을 종료했어요.");
     } catch { if (action === "start") clearDrivePermissions(); setActionError(`운행을 ${action === "start" ? "시작" : "종료"}하지 못했어요. 다시 시도해 주세요.`); }
     finally { actionLock.current = false; setSessionAction(null); }
   }
@@ -189,8 +189,8 @@ export default function App() {
       locationRequest.current = null;
       setPending(null);
       setNotice(finishReasonRef.current === "silence"
-        ? "무음이 4초 이어져 녹음을 자동으로 끝냈어요. 녹음은 보관했어요."
-        : "녹음을 보관했어요. 주행 감독에 집중해 주세요.");
+        ? "4초 동안 목소리가 들리지 않아 녹음을 마쳤어요. 녹음은 보관했어요."
+        : "녹음을 보관했어요.");
       setScreen("standby");
     } catch {
       setSaveError(true);
@@ -235,9 +235,9 @@ export default function App() {
           : <span aria-hidden="true" className="mb-5 size-12 animate-spin rounded-full border-[4px] border-line border-t-kakao-press motion-reduce:animate-none" />}
         <h1 className="text-[24px] font-extrabold tracking-tight">{saveError ? "녹음을 아직 보관하지 못했어요" : "녹음을 보관하고 있어요"}</h1>
         <p role={saveError ? "alert" : "status"} className="mt-4 text-[15px] text-ink-sub">
-          {saveError ? "이 화면에서 녹음을 유지하고 있어요. 기기의 저장 공간이나 브라우저의 저장 허용 여부를 확인한 뒤 다시 시도해 주세요. 화면을 닫거나 새로고침하면 이 녹음은 사라질 수 있어요." : "녹음과 시작 시 요청한 위치를 보관하고 있어요. 위치 확인은 최대 10초 기다리며, 확인하지 못해도 음성은 보관해요. 완료되면 대기로 돌아가요."}
+          {saveError ? "녹음은 이 화면에 그대로 남아 있어요. 기기의 저장 공간과 브라우저의 저장 권한을 확인한 뒤 다시 시도해 주세요. 화면을 닫거나 새로고침하면 녹음이 사라질 수 있어요." : "위치를 확인하고 있어요. 최대 10초가 걸릴 수 있어요."}
         </p>
-        {saveError && <Button autoFocus onClick={() => void commitRecording(pending)} disabled={saving} className="mt-6 focus-visible:outline-2 focus-visible:outline-offset-4">보관 다시 시도</Button>}
+        {saveError && <Button onClick={() => void commitRecording(pending)} disabled={saving} className="mt-6 focus-visible:outline-2 focus-visible:outline-offset-4">보관 다시 시도</Button>}
       </main>
     );
   }
@@ -280,8 +280,8 @@ export default function App() {
 
   if (route.page === "detail") {
     const record = data.recordings.find(item => item.id === route.id);
-    if (data.error || (!record && data.loading)) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5">{data.error ? <StateView kind="error" message="녹음을 읽지 못했어요. 다시 시도해 주세요." onRetry={() => void data.reload()} /> : <StateView kind="loading" message="녹음을 불러오는 중이에요…" />}</div></RecordingFrame>;
-    if (!record) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5"><StateView kind="empty" title="녹음을 찾을 수 없어요" message="현재 감독관의 보관 목록에 없는 녹음이에요." /></div></RecordingFrame>;
+    if (data.error || (!record && data.loading)) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5">{data.error ? <StateView kind="error" message="녹음을 불러오지 못했어요. 다시 시도해 주세요." onRetry={() => void data.reload()} /> : <StateView kind="loading" message="녹음을 불러오는 중이에요…" />}</div></RecordingFrame>;
+    if (!record) return <RecordingFrame><RecordingHeader title="녹음 상세" backLabel="목록" onBack={() => navigateRecordings()} /><div className="p-5"><StateView kind="empty" title="녹음을 찾을 수 없어요" message="이 감독관의 녹음 목록에 없는 녹음이에요." /></div></RecordingFrame>;
     const filtered = filteredRecordings(data.recordings, currentSession, listOptions);
     const siblings = filtered.some(item => item.id === record.id) ? filtered : data.recordings;
     const index = siblings.findIndex(item => item.id === record.id);
@@ -305,6 +305,6 @@ export default function App() {
     onRetry={() => void data.reload()}
     onChangeSupervisor={changeSupervisor}
   />
-  {confirmEnd && <ConfirmSheet title={confirmEnd === "switch" ? "운행을 종료하고 감독관을 바꿀까요?" : "이번 운행을 종료할까요?"} message="보관한 녹음은 그대로 남아요. 종료한 뒤에는 새 운행을 시작해야 녹음할 수 있어요." confirmLabel={confirmEnd === "switch" ? "종료하고 변경" : "운행 종료"} onCancel={() => setConfirmEnd(null)} onConfirm={() => { const mode = confirmEnd; setConfirmEnd(null); void (mode === "switch" ? changeSession("end", true) : changeSession("end")); }} />}
+  {confirmEnd && <ConfirmSheet title={confirmEnd === "switch" ? "운행을 종료하고 감독관을 바꿀까요?" : "이번 운행을 종료할까요?"} message="보관한 녹음은 그대로 남아요." confirmLabel={confirmEnd === "switch" ? "종료하고 바꾸기" : "운행 종료"} onCancel={() => setConfirmEnd(null)} onConfirm={() => { const mode = confirmEnd; setConfirmEnd(null); void (mode === "switch" ? changeSession("end", true) : changeSession("end")); }} />}
   </>;
 }

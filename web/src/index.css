@@ -13,12 +13,13 @@
 
   --color-ink: #191919;
   --color-ink-sub: #4a4f58;
-  --color-ink-muted: #7e8593;
+  --color-ink-muted: #667085;
   --color-line: #e8eaed;
   --color-surface: #f5f6f8;
 
   --color-danger: #e53935;
   --color-danger-ink: #b42318;
+  --color-danger-soft: #ff8a80;
   --color-warning: #e08a00;
   --color-warning-soft: #fff0e5;
   --color-warning-ink: #944000;
@@ -27,6 +28,8 @@
   --color-ok-ink: #17633b;
 
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.05);
+  --shadow-menu: 0 8px 28px rgba(25, 25, 25, 0.14);
+  --shadow-dock: 0 -10px 24px rgba(25, 25, 25, 0.07);
   --shadow-float: 0 2px 6px rgba(16, 24, 40, 0.06), 0 14px 36px rgba(16, 24, 40, 0.14);
 
   --font-sans: "Kakao Small Sans", "Pretendard Variable", Pretendard,
@@ -35,6 +38,7 @@
 
   --radius-button: 12px;
   --radius-card: 16px;
+  --radius-panel: 24px;
 
   --animate-pulse-ring: pulse-ring 2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
   --animate-blink: blink 1.2s ease-in-out infinite;
@@ -72,6 +76,44 @@
     50% {
       opacity: 0.25;
     }
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.menu-in {
+  animation: menu-in 0.14s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.rise {
+  animation: rise 0.55s cubic-bezier(0.32, 0.72, 0, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .menu-in {
+    animation: none;
   }
 }
 

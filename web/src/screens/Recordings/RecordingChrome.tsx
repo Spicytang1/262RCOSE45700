@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { ChevronDown, ChevronLeft } from "lucide-react";
+import { ChevronLeft, Minus, Plus } from "lucide-react";
 import { focusStyle } from "@/lib/recordingPresentation";
 
-export function RecordingFrame({ children }: { children: ReactNode }) {
-  return <main className="app-frame mx-auto min-h-dvh w-full max-w-[430px] touch-manipulation bg-surface pb-[max(24px,env(safe-area-inset-bottom))] leading-[1.7]">{children}</main>;
+export function RecordingFrame({ children, tone = "surface" }: { children: ReactNode; tone?: "surface" | "white" }) {
+  return <main className={`app-frame mx-auto min-h-dvh w-full max-w-[430px] touch-manipulation pb-[max(24px,env(safe-area-inset-bottom))] leading-[1.7] ${tone === "white" ? "bg-white" : "bg-surface"}`}>{children}</main>;
 }
 
 export function RecordingHeader({ title, backLabel, onBack }: { title: string; backLabel: string; onBack: () => void }) {
@@ -18,11 +18,12 @@ export function RecordingPanel({ title, children }: { title: string; children: R
 }
 
 export function RecordingFold({ title, badge, onOpen, children }: { title: string; badge?: string; onOpen?: () => void; children: ReactNode }) {
-  return <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className="group rounded-[20px] border border-line bg-white">
-    <summary className={`flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-[20px] px-5 py-3 [&::-webkit-details-marker]:hidden ${focusStyle}`}>
-      <span className="flex min-w-0 items-center gap-2 text-[16px] font-extrabold">{title}{badge && <span className="shrink-0 rounded-full bg-kakao-soft px-2.5 py-0.5 text-[11px] font-bold">{badge}</span>}</span>
-      <ChevronDown className="size-5 shrink-0 text-ink-sub transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
+  return <details onToggle={event => { if (event.currentTarget.open) onOpen?.(); }} className="group">
+    <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 py-3 [&::-webkit-details-marker]:hidden focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ink">
+      <span className="flex min-w-0 items-center gap-2 text-[16px] font-extrabold">{title}{badge && <span className="shrink-0 rounded-full bg-kakao-soft px-2.5 py-0.5 text-[12px] font-bold">{badge}</span>}</span>
+      <Plus className="size-5 shrink-0 text-ink-sub group-open:hidden" strokeWidth={2} aria-hidden="true" />
+      <Minus className="hidden size-5 shrink-0 text-ink-sub group-open:block" strokeWidth={2} aria-hidden="true" />
     </summary>
-    <div className="px-5 pb-5">{children}</div>
+    <div className="pb-5">{children}</div>
   </details>;
 }

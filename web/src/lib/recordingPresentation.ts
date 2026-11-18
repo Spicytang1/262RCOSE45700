@@ -1,8 +1,8 @@
 import type { RecordingEntry, RecordingReview, RecordingStatus, StructuredFieldKey } from "@/types/report";
 
-export const STATUS_LABEL: Record<RecordingStatus, string> = { new: "미검토", reviewed: "검토 완료", flagged: "조치 필요" };
+export const STATUS_LABEL: Record<RecordingStatus, string> = { new: "미검토", flagged: "조치 필요", reviewed: "검토 완료" };
 export const FIELD_CONFIG: Record<StructuredFieldKey, { label: string; description: string; options: readonly string[] }> = {
-  roadType: { label: "장소", description: "이슈가 난 곳의 도로 모양", options: ["교차로", "곡선로", "합류로", "직선로", "횡단보도"] },
+  roadType: { label: "장소", description: "이슈가 생긴 곳의 도로 모양", options: ["교차로", "곡선로", "합류로", "직선로", "횡단보도"] },
   previousAction: { label: "이전 동작", description: "이슈 직전에 내 차가 하던 동작", options: ["직진", "차선 변경", "좌회전", "우회전", "정차 중"] },
   targetType: { label: "대상 유형", description: "이슈와 관련된 대상", options: ["차량", "보행자", "이륜차", "없음", "미확인"] },
   reaction: { label: "반응", description: "이슈 이후 내 차가 보인 반응", options: ["급감속", "급가속", "과조향", "정차"] },

@@ -35,7 +35,7 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
   const control = `min-h-11 rounded-button border border-line bg-white px-3 text-[14px] ${focusStyle}`;
 
   return <RecordingFrame>
-    <RecordingHeader title="녹음 목록" backLabel="대기" onBack={onBack} />
+    <RecordingHeader title="녹음 목록" backLabel="홈" onBack={onBack} />
     <div className="flex flex-col gap-3 px-5 pt-4">
       <p className="text-[14px] text-ink-sub [overflow-wrap:anywhere]">{supervisorName}의 녹음이에요. 정차 후 확인해 주세요.</p>
       <div role="group" aria-label="녹음 범위" className="grid grid-cols-2 gap-1 rounded-button bg-line p-1">
@@ -49,12 +49,12 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
         <div><label htmlFor="recording-status" className="sr-only">검토 상태</label><select id="recording-status" value={options.status} onChange={event => change({ status: event.target.value as ListOptions['status'] })} className={`${control} w-full`}><option value="all">전체 상태</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
         <div><label htmlFor="recording-sort" className="sr-only">정렬</label><select id="recording-sort" value={options.sort} onChange={event => change({ sort: event.target.value as ListOptions['sort'] })} className={`${control} w-full`}><option value="latest">최신순</option><option value="oldest">오래된순</option></select></div>
       </div>
-      {loading ? <StateView kind="loading" message="녹음을 불러오는 중이에요…" /> : error ? <StateView kind="error" message="녹음을 읽지 못했어요. 다시 시도해 주세요." onRetry={onRetry} /> : <>
-        <p role="status" className="text-[13px] font-semibold text-ink-sub">{options.scope === "session" ? (currentSession ? `${currentSession.number}회차` : "시작한 운행 없음") : "전체 녹음"} · {list.length.toLocaleString("ko-KR")}건</p>
+      {loading ? <StateView kind="loading" message="녹음을 불러오는 중이에요…" /> : error ? <StateView kind="error" message="녹음을 불러오지 못했어요. 다시 시도해 주세요." onRetry={onRetry} /> : <>
+        <p role="status" className="text-[13px] font-semibold text-ink-sub">{options.scope === "session" ? (currentSession ? `${currentSession.number}회차` : "시작한 운행이 없어요") : "전체 녹음"} · {list.length.toLocaleString("ko-KR")}건</p>
         {list.length === 0 && <StateView kind="empty" title={recordings.length === 0 ? "아직 보관한 녹음이 없어요" : "조건에 맞는 녹음이 없어요"} message={recordings.length === 0 ? "대기 화면에서 운행을 시작하고 첫 녹음을 남겨 주세요." : "전체 녹음을 선택하거나 검색·필터 조건을 바꿔 주세요."} action={<button type="button" onClick={() => onOptions({ ...INITIAL_LIST_OPTIONS, scope: "all" })} className={`min-h-11 rounded-button bg-surface px-4 text-[14px] font-bold ${focusStyle}`}>전체 녹음 보기</button>} />}
         {sessionGroups.map(([sessionId, records]) => {
           const groupSession = sessionById.get(sessionId);
-          const label = groupSession ? `${groupSession.number}회차` : sessionId ? "회차 정보 없음" : "이전 녹음 · 회차 미지정";
+          const label = groupSession ? `${groupSession.number}회차` : sessionId ? "회차 정보 없음" : "이전 녹음 (회차 없음)";
           return <section key={sessionId} aria-label={label}><h2 className="mb-3 text-[15px] font-extrabold text-ink">{label}</h2><div className="flex flex-col gap-3">{records.map(record => {
           const session = record.sessionId ? sessionById.get(record.sessionId) : undefined;
           const status = record.review?.status ?? "new";
@@ -73,7 +73,6 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
         })}
         {list.length > options.limit && <button type="button" onClick={() => onOptions({ ...options, limit: options.limit + 30 })} className={`${control} font-bold`}>녹음 더 보기</button>}
       </>}
-      <p className="py-2 text-[12px] text-ink-sub">녹음은 이 기기의 같은 브라우저에만 보관돼요.</p>
     </div>
   </RecordingFrame>;
 }
