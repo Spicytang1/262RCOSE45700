@@ -35,7 +35,7 @@ export default function Record({ onFinish, onCancel }: Props) {
     async function startRecording() {
       try {
         // 마이크 권한 요청 (사용자가 허용해야 진행됨)
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
         if (ignore) {
           stream.getTracks().forEach((t) => t.stop());
