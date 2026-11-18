@@ -7,13 +7,25 @@ from pathlib import Path
 import httpx
 import numpy as np
 from app.adapters.gateway.client import GatewayClient
-from app.services.glossary import Glossary, apply_fuzzy, correct_text, jamo_similarity
+from app.config import Settings
+from app.services.glossary import Glossary, apply_fuzzy, correct_text, glossary_path, jamo_similarity
 from eval.augment_noise import measured_snr_db, mix_at_snr, synthetic_cabin_noise
 from eval.common import load_items, select_scripts
 from eval.compare_stt import evaluate_split
 from eval.metrics import macro_f1
-from eval.run_eval import CreditRates, audio_for, estimate_credits, load_scripts, plan_condition, render_report
-from eval.stage_cache import ensure_stage
+from eval.run_eval import (
+    CreditRates,
+    _wording_sha,
+    audio_for,
+    estimate_credits,
+    load_scripts,
+    main,
+    mock_provider_warning,
+    plan_condition,
+    render_report,
+    run_cached_pipeline,
+)
+from eval.stage_cache import ensure_stage, text_sha256
 from eval.synthesize_speech import synthesize_scripts
 
 RATES = CreditRates(
@@ -128,6 +140,10 @@ def test_dry_run_counts_uncached_audio_only(tmp_path: Path) -> None:
         rates=RATES,
         stt_model="stt-async-v5",
         extract_model="claude-opus-5-5",
+        stt_provider="mock",
+        extractor_provider="mock",
+        classifier_provider="mock",
+        jev_model="jev-1.14.0",
     )
     assert plan["stt_calls"] == 1
     assert plan["extract_calls"] == 1
@@ -203,6 +219,167 @@ def test_resolved_time_scores_against_gold() -> None:
     }
     scored = score_sample(script, record, ["컷인"])
     assert scored["mentioned_time_resolved_correct"] is True
+
+
+def _plan(audio: Path, cache: Path, **overrides: str) -> dict[str, float]:
+    fields = {
+        "stt_model": "stt-async-v5",
+        "extract_model": "claude-opus-5-5",
+        "stt_provider": "mock",
+        "extractor_provider": "mock",
+        "classifier_provider": "mock",
+        "jev_model": "jev-1.14.0",
+    }
+    fields.update(overrides)
+    return plan_condition(
+        [{"id": "s01", "script": "방금 컷인"}],
+        "original",
+        audio_dir=audio,
+        cache_dir=cache,
+        rates=RATES,
+        **fields,
+    )
+
+
+def _eval_settings(**overrides: str) -> Settings:
+    values: dict[str, str] = {
+        "stt_provider": "mock",
+        "extractor_provider": "mock",
+        "classifier_provider": "mock",
+        "stt_model": "stt-async-v5",
+        "extract_model": "claude-opus-5-5",
+        "jev_model_version": "jev-1.14.0",
+    }
+    values.update(overrides)
+    return Settings(_env_file=None, **values)
+
+
+def test_cache_fingerprint_includes_provider_and_model(tmp_path: Path, monkeypatch) -> None:
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir()
+    _write_silence(audio_dir / "s01.wav", seconds=0.2)
+    calls = {"stt": 0, "extract": 0, "classify": 0}
+
+    def fake_stt(_audio: Path, settings: Settings) -> dict[str, object]:
+        calls["stt"] += 1
+        return {"text": f"전사 {settings.stt_provider} {settings.stt_model}", "words": []}
+
+    def fake_extract(text: str, settings: Settings) -> dict[str, object]:
+        calls["extract"] += 1
+        return {"cause": {"value": settings.extractor_provider, "evidence": text}}
+
+    def fake_classify(_state: str, settings: Settings) -> dict[str, object]:
+        calls["classify"] += 1
+        return {"event_type": f"{settings.classifier_provider}:{settings.jev_model_version}"}
+
+    monkeypatch.setattr("eval.run_eval._run_stt", fake_stt)
+    monkeypatch.setattr("eval.run_eval._run_extraction", fake_extract)
+    monkeypatch.setattr("eval.run_eval._run_classification", fake_classify)
+    cache = tmp_path / "cache" / "original" / "s01"
+
+    glossary_sha = text_sha256(glossary_path().read_text(encoding="utf-8"))
+    wording_sha = _wording_sha()
+
+    def run(**overrides: str) -> dict[str, object]:
+        return run_cached_pipeline(
+            audio_dir / "s01.wav",
+            cache,
+            settings=_eval_settings(**overrides),
+            glossary_sha=glossary_sha,
+            wording_sha=wording_sha,
+        )
+
+    first = run()
+    assert calls == {"stt": 1, "extract": 1, "classify": 1}
+    assert first["raw_text"] == "전사 mock stt-async-v5"
+    again = run()
+    assert calls == {"stt": 1, "extract": 1, "classify": 1}
+    assert again["raw_text"] == first["raw_text"]
+    cached = _plan(audio_dir, tmp_path / "cache")
+    assert (cached["stt_calls"], cached["extract_calls"], cached["classify_calls"]) == (0, 0, 0)
+    switched = _plan(audio_dir, tmp_path / "cache", classifier_provider="gateway_jev", jev_model="jev-9")
+    assert (switched["stt_calls"], switched["extract_calls"], switched["classify_calls"]) == (0, 0, 1)
+    fresh_stt = _plan(audio_dir, tmp_path / "cache", stt_provider="gateway", stt_model="stt-async-v6")
+    assert (fresh_stt["stt_calls"], fresh_stt["extract_calls"], fresh_stt["classify_calls"]) == (1, 1, 1)
+
+    gateway = run(stt_provider="gateway")
+    assert calls["stt"] == 2
+    assert gateway["raw_text"] == "전사 gateway stt-async-v5"
+    other_model = run(stt_provider="gateway", stt_model="stt-async-v6")
+    assert calls["stt"] == 3
+    assert other_model["raw_text"] == "전사 gateway stt-async-v6"
+
+    run()
+    before_extract = dict(calls)
+    extracted = run(extractor_provider="gateway_claude")
+    assert calls["stt"] == before_extract["stt"]
+    assert calls["extract"] == before_extract["extract"] + 1
+    assert extracted["cause"] == "gateway_claude"
+    classified = run(
+        extractor_provider="gateway_claude",
+        classifier_provider="gateway_jev",
+        jev_model_version="jev-9",
+    )
+    assert calls["extract"] == before_extract["extract"] + 1
+    assert calls["classify"] == before_extract["classify"] + 2
+    assert classified["event_type"] == "gateway_jev:jev-9"
+    other_extract_model = run(extractor_provider="gateway_claude", extract_model="claude-opus-5-6")
+    assert calls["extract"] == before_extract["extract"] + 2
+    assert other_extract_model["cause"] == "gateway_claude"
+
+
+def test_mock_provider_warning_prints_and_lands_in_report(tmp_path: Path, monkeypatch, capsys) -> None:
+    partial = _eval_settings(extractor_provider="gateway_claude")
+    note = mock_provider_warning(partial)
+    assert note is not None
+    assert "STT" in note and "분류" in note
+    assert "추출" not in note
+    real = _eval_settings(
+        stt_provider="gateway",
+        extractor_provider="gateway_claude",
+        classifier_provider="gateway_jev",
+    )
+    assert mock_provider_warning(real) is None
+    report = render_report({"original": {"cer": 0.1, "n": 1}}, {"cer_max": 0.35}, note)
+    assert report.splitlines()[2] == note
+    quiet = render_report({"original": {"cer": 0.1, "n": 1}}, {"cer_max": 0.35})
+    assert "경고" not in quiet
+
+    monkeypatch.setattr("eval.run_eval.Settings", lambda: _eval_settings())
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    report_dir = tmp_path / "reports"
+    code = main(
+        [
+            "--ids",
+            "s01",
+            "--conditions",
+            "original",
+            "--audio-dir",
+            str(audio),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--report-dir",
+            str(report_dir),
+        ]
+    )
+    assert code == 0
+    printed = capsys.readouterr().out
+    assert printed.startswith("경고: STT, 추출, 분류 단계가 mock 입니다.")
+    written = (report_dir / "eval_report.md").read_text(encoding="utf-8")
+    assert "경고: STT, 추출, 분류 단계가 mock 입니다. 게이트웨이를 호출하지 않습니다." in written.splitlines()
+
+    monkeypatch.setattr(
+        "eval.run_eval.Settings",
+        lambda: _eval_settings(
+            stt_provider="gateway",
+            extractor_provider="gateway_claude",
+            classifier_provider="gateway_jev",
+        ),
+    )
+    dry = main(["--dry-run", "--ids", "s01", "--conditions", "original", "--audio-dir", str(audio)])
+    assert dry == 0
+    assert "경고" not in capsys.readouterr().out
 
 
 def test_dataset_has_forty_scripts_and_compare_uses_text_split() -> None:

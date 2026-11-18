@@ -109,6 +109,10 @@ def plan_condition(
     rates: CreditRates,
     stt_model: str,
     extract_model: str,
+    stt_provider: str,
+    extractor_provider: str,
+    classifier_provider: str,
+    jev_model: str,
 ) -> dict[str, float]:
     stt_calls = 0
     extract_calls = 0
@@ -119,7 +123,8 @@ def plan_condition(
         sample_id = str(item["id"])
         audio = audio_for(sample_id, condition, audio_dir)
         stt_path = cache_dir / condition / sample_id / "stt.json"
-        stt_cached = _cached_fingerprint(stt_path, _stt_fingerprint(audio, stt_model) if audio else None)
+        stt_fp = _stt_fingerprint(audio, stt_provider, stt_model) if audio else None
+        stt_cached = _cached_fingerprint(stt_path, stt_fp)
         if audio is None:
             continue
         duration = _duration_seconds(audio) or rates.assumed_audio_seconds
@@ -145,7 +150,7 @@ def plan_condition(
             classify_calls += 1
             continue
         extraction_path = cache_dir / condition / sample_id / "extraction.json"
-        extraction_fp = text_sha256(corrected) + glossary_sha + extract_model
+        extraction_fp = _extraction_fingerprint(corrected, glossary_sha, extractor_provider, extract_model)
         if not _cached_fingerprint(extraction_path, extraction_fp):
             extract_calls += 1
             classify_calls += 1
@@ -158,7 +163,7 @@ def plan_condition(
                 _nested_str(extraction_payload, "cause"),
                 _nested_str(extraction_payload, "location"),
             )
-        classification_fp = text_sha256(state) + _wording_sha()
+        classification_fp = _classification_fingerprint(state, _wording_sha(), classifier_provider, jev_model)
         classification_path = cache_dir / condition / sample_id / "classification.json"
         if not _cached_fingerprint(classification_path, classification_fp):
             classify_calls += 1
@@ -251,13 +256,20 @@ def score_sample(script: dict[str, object], record: dict[str, object], terms: li
     }
 
 
-def render_report(condition_rows: dict[str, dict[str, object]], thresholds: dict[str, float]) -> str:
+def render_report(
+    condition_rows: dict[str, dict[str, object]],
+    thresholds: dict[str, float],
+    mock_note: str | None = None,
+) -> str:
     header = (
         "| 조건 | n | CER | WER | 용어 재현(보정 후) | 사건 유형 macro F1 | "
         "필드 정확도 | 장소 | 상대 시각 | 해석 시각 | 환각 |"
     )
     divider = "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
-    lines = ["# 음성 평가", "", header, divider]
+    lines = ["# 음성 평가", ""]
+    if mock_note:
+        lines.extend([mock_note, ""])
+    lines.extend([header, divider])
     for condition, summary in condition_rows.items():
         row = (
             "| {condition} | {n} | {cer} | {wer} | {term} | {f1} | {field} | {loc} | {mention} | {resolved} | {hall} |"
@@ -372,10 +384,10 @@ def run_cached_pipeline(
     wording_sha: str,
 ) -> dict[str, object]:
     sample_cache = cache_dir
-    model = settings.stt_model
+    extract_model = _extract_model_id(settings)
     stt_payload, _ = ensure_stage(
         sample_cache / "stt.json",
-        _stt_fingerprint(audio, model),
+        _stt_fingerprint(audio, settings.stt_provider, settings.stt_model),
         lambda: _run_stt(audio, settings),
     )
     raw_text = str(stt_payload.get("text", ""))
@@ -387,7 +399,7 @@ def run_cached_pipeline(
     corrected = str(glossary_payload.get("text", ""))
     extraction_payload, _ = ensure_stage(
         sample_cache / "extraction.json",
-        text_sha256(corrected) + glossary_sha + settings.extract_model,
+        _extraction_fingerprint(corrected, glossary_sha, settings.extractor_provider, extract_model),
         lambda: _run_extraction(corrected, settings),
     )
     state = build_state_text(
@@ -397,7 +409,7 @@ def run_cached_pipeline(
     )
     classification_payload, _ = ensure_stage(
         sample_cache / "classification.json",
-        text_sha256(state) + wording_sha,
+        _classification_fingerprint(state, wording_sha, settings.classifier_provider, settings.jev_model_version),
         lambda: _run_classification(state, settings),
     )
     transcript = corrected
@@ -432,6 +444,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     scripts = select_scripts(load_scripts(), args.ids, None)
     settings = Settings()
+    mock_note = mock_provider_warning(settings)
+    if mock_note:
+        print(mock_note)
     conditions = [item.strip() for item in args.conditions.split(",") if item.strip()]
     plans = []
     for condition in conditions:
@@ -442,7 +457,11 @@ def main(argv: list[str] | None = None) -> int:
             cache_dir=args.cache_dir,
             rates=rates,
             stt_model=settings.stt_model,
-            extract_model=settings.extract_model,
+            extract_model=_extract_model_id(settings),
+            stt_provider=settings.stt_provider,
+            extractor_provider=settings.extractor_provider,
+            classifier_provider=settings.classifier_provider,
+            jev_model=settings.jev_model_version,
         )
         plans.append((condition, plan))
         print(
@@ -488,7 +507,8 @@ def main(argv: list[str] | None = None) -> int:
         summaries[condition]["pass"] = passes(summaries[condition], config["metrics"])
     args.report_dir.mkdir(parents=True, exist_ok=True)
     metrics_thresholds = {key: float(value) for key, value in config["metrics"].items()}
-    (args.report_dir / "eval_report.md").write_text(render_report(summaries, metrics_thresholds), encoding="utf-8")
+    report = render_report(summaries, metrics_thresholds, mock_note)
+    (args.report_dir / "eval_report.md").write_text(report, encoding="utf-8")
     _write_csv(args.report_dir / "eval_report.csv", summaries)
     _write_errors(args.report_dir / "errors.csv", error_rows)
     print(f"보고서를 썼습니다: {args.report_dir}")
@@ -531,10 +551,36 @@ def _rates(raw: object) -> CreditRates:
     )
 
 
-def _stt_fingerprint(audio: Path | None, model: str) -> str:
+def mock_provider_warning(settings: Settings) -> str | None:
+    mocked: list[str] = []
+    if settings.stt_provider == "mock":
+        mocked.append("STT")
+    if settings.extractor_provider == "mock":
+        mocked.append("추출")
+    if settings.classifier_provider == "mock":
+        mocked.append("분류")
+    if not mocked:
+        return None
+    names = ", ".join(mocked)
+    return f"경고: {names} 단계가 mock 입니다. 게이트웨이를 호출하지 않습니다."
+
+
+def _extract_model_id(settings: Settings) -> str:
+    return settings.extract_model.strip() or settings.claude_model.strip()
+
+
+def _stt_fingerprint(audio: Path | None, provider: str, model: str) -> str:
     if audio is None:
         return "missing"
-    return file_sha256(audio) + model
+    return "|".join((file_sha256(audio), provider, model))
+
+
+def _extraction_fingerprint(text: str, glossary_sha: str, provider: str, model: str) -> str:
+    return "|".join((text_sha256(text), glossary_sha, provider, model))
+
+
+def _classification_fingerprint(state: str, wording_sha: str, provider: str, model: str) -> str:
+    return "|".join((text_sha256(state), wording_sha, provider, model))
 
 
 def _wording_sha() -> str:
