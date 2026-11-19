@@ -6,9 +6,11 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.adapters.audio import AudioNormalizeError
 from app.adapters.classifier.base import ChoiceAnswer, ScoreAnswer
 from app.adapters.classifier.factory import get_classifier
 from app.adapters.extractor.factory import get_extractor
+from app.adapters.gateway.errors import GatewayError
 from app.adapters.stt.factory import get_stt_adapter
 from app.config import Settings
 from app.domain.taxonomy.loader import load_taxonomy
@@ -57,7 +59,7 @@ def run_pipeline(
             latitude=latitude,
             longitude=longitude,
         )
-    except NotImplementedError as exc:
+    except (NotImplementedError, GatewayError, AudioNormalizeError) as exc:
         raise ExternalCallError(str(exc)) from exc
 
 
