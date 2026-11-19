@@ -4,7 +4,6 @@ import mimetypes
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -14,7 +13,7 @@ from app.api.errors import ISSUE_NOT_FOUND, RESP_401, RESP_404, RESP_422
 from app.auth.deps import get_current_user, get_db
 from app.domain.taxonomy.loader import event_type_keys
 from app.models import User
-from app.schemas.issues import IssueOut, IssueUpdate
+from app.schemas.issues import IssueOut, IssueStatus, IssueUpdate
 from app.services.issues import apply_issue_update, get_visible_issue, list_visible_issues, to_issue_out
 
 router = APIRouter()
@@ -37,7 +36,7 @@ def _require_issue(db: Session, issue_id: uuid.UUID, user: User):
 def list_issues(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    status: Literal["draft", "confirmed"] | None = None,
+    status: IssueStatus | None = None,
     event_type: str | None = None,
     from_: datetime | None = Query(default=None, alias="from"),
     to: datetime | None = None,

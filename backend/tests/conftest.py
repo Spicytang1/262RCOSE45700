@@ -15,8 +15,8 @@ OPERATOR_PASSWORD = "operator-pass-123"
 OTHER_PASSWORD = "operator-pass-456"
 
 
-@pytest.fixture
-def settings(tmp_path) -> Settings:
+def build_test_settings(tmp_path) -> Settings:
+    """생성자 값이 프로세스 환경의 provider 보다 우선한다."""
     return Settings(
         _env_file=None,
         app_env="dev",
@@ -24,7 +24,15 @@ def settings(tmp_path) -> Settings:
         storage_dir=str(tmp_path / "storage"),
         jwt_secret="test-secret-value-should-be-long-enough",
         cors_origins="http://localhost:5173",
+        stt_provider="mock",
+        extractor_provider="mock",
+        classifier_provider="mock",
     )
+
+
+@pytest.fixture
+def settings(tmp_path) -> Settings:
+    return build_test_settings(tmp_path)
 
 
 @pytest.fixture

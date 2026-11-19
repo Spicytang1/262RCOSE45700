@@ -306,4 +306,5 @@ def test_smoke_skips_without_key(
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("GATEWAY_API_KEY", raising=False)
     assert main([]) == 0
+    assert main(["--text", "직진하다가 컷인"]) == 0
     assert "건너뜁니다" in capsys.readouterr().out

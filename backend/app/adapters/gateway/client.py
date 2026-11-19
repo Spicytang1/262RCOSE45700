@@ -20,6 +20,7 @@ from urllib.parse import quote
 import httpx
 
 from app.adapters.gateway.errors import GatewayError
+from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,16 @@ class GatewayClient:
         self._backoff = retry_backoff_seconds
         self._transport = transport
         self._sleep = sleep or time.sleep
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> GatewayClient:
+        return cls(
+            settings.gateway_base_url,
+            settings.gateway_api_key,
+            timeout_seconds=settings.gateway_timeout_seconds,
+            max_retries=settings.gateway_max_retries,
+            retry_backoff_seconds=settings.gateway_retry_backoff_seconds,
+        )
 
     def post_json(self, path: str, payload: dict[str, object]) -> dict[str, object]:
         """chat/completions, decisions 같은 JSON POST."""

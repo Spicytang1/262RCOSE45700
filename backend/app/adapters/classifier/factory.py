@@ -14,7 +14,6 @@ def get_classifier(settings: Settings) -> ClassifierAdapter:
     if provider == "mock":
         return MockClassifier()
     if provider == "gateway_jev":
-        client = GatewayClient(settings.gateway_base_url, settings.gateway_api_key)
-        return GatewayJevClassifier(client, settings.jev_model_version)
+        return GatewayJevClassifier(GatewayClient.from_settings(settings), settings.jev_model_version)
     never: Never = provider
     raise AssertionError(never)

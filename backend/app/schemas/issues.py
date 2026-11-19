@@ -22,6 +22,9 @@ class IssueTicket(BaseModel):
     content: str | None = None
 
 
+IssueStatus = Literal["draft", "confirmed", "error"]
+
+
 class TranscriptOut(BaseModel):
     raw_text: str
     corrected_text: str
@@ -33,7 +36,7 @@ class RecordingResult(BaseModel):
     recording_id: uuid.UUID
     issue_id: uuid.UUID
     recorded_at: datetime
-    status: Literal["draft", "confirmed"]
+    status: IssueStatus
     transcript: TranscriptOut
     extraction: IssueExtraction
     ticket: IssueTicket
@@ -81,7 +84,7 @@ class IssueOut(BaseModel):
     recording_id: uuid.UUID
     recorded_at: datetime
     operator_id: uuid.UUID
-    status: Literal["draft", "confirmed"]
+    status: IssueStatus
     ai_extraction: IssueExtraction
     final_extraction: IssueExtraction | None
     confirmed_at: datetime | None
