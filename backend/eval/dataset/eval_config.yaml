@@ -1,0 +1,15 @@
+# 평가용 생성 설정. 목소리·SNR 은 여기만 바꾸면 된다.
+tts:
+  model: gemini-3.8-flash-tts
+  voices:
+    - Kore
+  sample_rate: 24000
+  sample_width_bytes: 2
+  channels: 1
+
+noise:
+  snr_db:
+    - 20
+    - 10
+    - 5
+  sample_rate: 16000

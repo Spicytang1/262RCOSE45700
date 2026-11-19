@@ -1,0 +1,1471 @@
+{
+  "recording_file_pattern": "sNN.m4a",
+  "scripts": [
+    {
+      "id": "s01",
+      "script": "방금 교차로에서 직진하는데, 왼쪽에서 검은 승용차가 컷인해서 끼어들었어요. 급제동했습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "cut_in",
+          "label": "끼어들기"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s02",
+      "script": "30초 전에 합류 구간에서 옆 차로 차가 갑자기 끼어들었어요. 간격이 너무 짧아서 급감속했습니다.",
+      "expected": {
+        "location": "합류 구간",
+        "road_type": {
+          "key": "merge",
+          "label": "합류로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "cut_in",
+          "label": "끼어들기"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "30초 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s03",
+      "script": "조금 전에 직선로에서 차선 변경하려는데, 뒤에서 오던 은색 승용차가 앞으로 컷인했어요. 핸들이 과하게 들어갔습니다.",
+      "expected": {
+        "location": "직선로",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "lane_change",
+          "label": "차선 변경"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "oversteer",
+          "label": "과조향"
+        },
+        "issue_type": {
+          "key": "cut_in",
+          "label": "끼어들기"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s04",
+      "script": "아까 곡선로 나오면서 직진하는데 트럭이 앞으로 확 끼어들어서, 완전 정차까지 갔어요.",
+      "expected": {
+        "location": "곡선로",
+        "road_type": {
+          "key": "curve",
+          "label": "곡선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "cut_in",
+          "label": "끼어들기"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "아까"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s05",
+      "script": "방금 직선 구간에서 앞차가 갑자기 급브레이크 밟아서, 저희도 급제동했습니다.",
+      "expected": {
+        "location": "직선 구간",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "sudden_brake",
+          "label": "급제동"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s06",
+      "script": "조금 전 교차로에서 좌회전 진입하는데 맞은편 차가 급정거해서, 저희도 급감속했어요.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "left_turn",
+          "label": "좌회전"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "sudden_brake",
+          "label": "급제동"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s07",
+      "script": "30초 전에 횡단보도 앞에서 갑자기 급제동이 걸렸는데, 대상이 뭔지는 잘 못 봤어요.",
+      "expected": {
+        "location": "횡단보도 앞",
+        "road_type": {
+          "key": "crosswalk",
+          "label": "횡단보도"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "unknown",
+          "label": "미확인"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "sudden_brake",
+          "label": "급제동"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "30초 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s08",
+      "script": "방금 곡선로에서 별다른 장애물은 안 보였는데 차량이 갑자기 급제동했어요. 한번 로그 봐주세요.",
+      "expected": {
+        "location": "곡선로",
+        "road_type": {
+          "key": "curve",
+          "label": "곡선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "sudden_brake",
+          "label": "급제동"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s09",
+      "script": "방금 직선로에서 직진하는데 오토바이가 오른쪽에서 차선 안으로 갑툭튀했어요. 급감속했습니다.",
+      "expected": {
+        "location": "직선로",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "two_wheeler",
+          "label": "이륜차"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "two_wheeler_intrusion",
+          "label": "이륜차 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s10",
+      "script": "조금 전 교차로에서 우회전하는데 자전거가 옆에서 확 들어왔어요. 조향이 과하게 들어갔습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "right_turn",
+          "label": "우회전"
+        },
+        "target": {
+          "key": "two_wheeler",
+          "label": "이륜차"
+        },
+        "reaction": {
+          "key": "oversteer",
+          "label": "과조향"
+        },
+        "issue_type": {
+          "key": "two_wheeler_intrusion",
+          "label": "이륜차 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s11",
+      "script": "30초 전에 합류 구간에서 킥보드가 앞으로 튀어나와서, 일단 정차했어요.",
+      "expected": {
+        "location": "합류 구간",
+        "road_type": {
+          "key": "merge",
+          "label": "합류로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "two_wheeler",
+          "label": "이륜차"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "two_wheeler_intrusion",
+          "label": "이륜차 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "30초 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s12",
+      "script": "아까 횡단보도 지나는데 이륜차가 보도에서 차도로 갑자기 뛰어들었어요. 급제동했습니다.",
+      "expected": {
+        "location": "횡단보도",
+        "road_type": {
+          "key": "crosswalk",
+          "label": "횡단보도"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "two_wheeler",
+          "label": "이륜차"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "two_wheeler_intrusion",
+          "label": "이륜차 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "아까"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s13",
+      "script": "방금 직선로에 불법주정차 차량이 차선을 막고 있어서 피하려고 경로 바꿨어요. 조향이 좀 과했습니다.",
+      "expected": {
+        "location": "직선로",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "oversteer",
+          "label": "과조향"
+        },
+        "issue_type": {
+          "key": "illegal_parking_avoidance",
+          "label": "불법주정차 회피"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s14",
+      "script": "조금 전 곡선로 들어가니 이중주차된 승용차가 있어서 감속하면서 피해 갔어요.",
+      "expected": {
+        "location": "곡선로",
+        "road_type": {
+          "key": "curve",
+          "label": "곡선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "soft_decel",
+          "label": "감속",
+          "in_taxonomy": false
+        },
+        "issue_type": {
+          "key": "illegal_parking_avoidance",
+          "label": "불법주정차 회피"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [
+        "ego_reaction:감속 (taxonomy has hard_decel/급감속 only, no gentle 감속)"
+      ],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s15",
+      "script": "30초 전에 교차로에서 우회전하려는데 코너에 불법주정차가 있어서, 일단 정차했다가 돌아 나왔습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "right_turn",
+          "label": "우회전"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "illegal_parking_avoidance",
+          "label": "불법주정차 회피"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "30초 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s16",
+      "script": "아까 합류로에서 차선 변경하는데 앞에 불법주정차가 있어서 급하게 피했어요. 핸들이 많이 꺾였습니다.",
+      "expected": {
+        "location": "합류로",
+        "road_type": {
+          "key": "merge",
+          "label": "합류로"
+        },
+        "prior_maneuver": {
+          "key": "lane_change",
+          "label": "차선 변경"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "oversteer",
+          "label": "과조향"
+        },
+        "issue_type": {
+          "key": "illegal_parking_avoidance",
+          "label": "불법주정차 회피"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "아까"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s17",
+      "script": "방금 횡단보도에서 직진하는데 보행자가 신호가 아닌데도 차도로 뛰어들었어요. 급제동했습니다.",
+      "expected": {
+        "location": "횡단보도",
+        "road_type": {
+          "key": "crosswalk",
+          "label": "횡단보도"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "pedestrian",
+          "label": "보행자"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "pedestrian_intrusion",
+          "label": "보행자 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s18",
+      "script": "조금 전 교차로에서 좌회전 중인데 보행자가 횡단 중에 갑자기 차선 안으로 들어와서, 정차했습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "left_turn",
+          "label": "좌회전"
+        },
+        "target": {
+          "key": "pedestrian",
+          "label": "보행자"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "pedestrian_intrusion",
+          "label": "보행자 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s19",
+      "script": "30초 전에 직선 구간인데 인도를 걷던 사람이 갑자기 차도로 돌출했어요. 급감속했습니다.",
+      "expected": {
+        "location": "직선 구간",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "pedestrian",
+          "label": "보행자"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "pedestrian_intrusion",
+          "label": "보행자 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "30초 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s20",
+      "script": "방금 곡선로에서 보행자가 길 한가운데로 나와 있어서, 제가 바로 테이크오버하고 멈췄어요.",
+      "expected": {
+        "location": "곡선로",
+        "road_type": {
+          "key": "curve",
+          "label": "곡선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "pedestrian",
+          "label": "보행자"
+        },
+        "reaction": {
+          "key": "takeover",
+          "label": "테이크오버",
+          "in_taxonomy": false,
+          "also": {
+            "key": "stop",
+            "label": "정차"
+          }
+        },
+        "issue_type": {
+          "key": "pedestrian_intrusion",
+          "label": "보행자 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [
+        "ego_reaction:테이크오버/수동개입 (not in taxonomy; closest taxonomy label is 정차/stop)"
+      ],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s21",
+      "script": "방금 직선로에 라바콘이 차선을 막고 있어서 공사구간인 줄 알고 일단 정차했습니다.",
+      "expected": {
+        "location": "직선로",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "construction_zone",
+          "label": "공사구간"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": "라바콘/공사구간 is an event type, not a target_type option; target left as none."
+    },
+    {
+      "id": "s22",
+      "script": "조금 전 곡선로에 차선 통제용 라바콘이 나와 있어서 피하느라 조향이 과하게 들어갔어요.",
+      "expected": {
+        "location": "곡선로",
+        "road_type": {
+          "key": "curve",
+          "label": "곡선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "oversteer",
+          "label": "과조향"
+        },
+        "issue_type": {
+          "key": "construction_zone",
+          "label": "공사구간"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s23",
+      "script": "30초 전에 합류 구간이 공사 중이라 차선이 좁아져 있어서, 차선 변경하면서 급감속했습니다.",
+      "expected": {
+        "location": "합류 구간",
+        "road_type": {
+          "key": "merge",
+          "label": "합류로"
+        },
+        "prior_maneuver": {
+          "key": "lane_change",
+          "label": "차선 변경"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "construction_zone",
+          "label": "공사구간"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "30초 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s24",
+      "script": "아까 교차로에서 정차 중인데 앞에 공사구간 라바콘이 새로 설치돼 있더라고요. 출발을 잠시 미뤘습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "stopped",
+          "label": "정차 중"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "construction_zone",
+          "label": "공사구간"
+        },
+        "severity": {
+          "key": "low",
+          "label": "낮음"
+        },
+        "relative_time": "아까"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": "출발을 미룬 상황. taxonomy ego_action_before has 정차 중 but no 출발."
+    },
+    {
+      "id": "s25",
+      "script": "방금 교차로에서 직진인데, 신호가 노란불에서 바로 빨간불로 바뀌는 것처럼 보였어요. 일단 정차했습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "signal_issue",
+          "label": "신호 문제"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s26",
+      "script": "조금 전 교차로에서 좌회전 신호인 줄 알고 진입했는데, 빨간불이었어요. 급감속했습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "left_turn",
+          "label": "좌회전"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "signal_issue",
+          "label": "신호 문제"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s27",
+      "script": "30초 전에 횡단보도 앞 신호등이 깜빡이거나 인지를 못 한 것 같아요. 차량이 애매하게 서 버렸습니다.",
+      "expected": {
+        "location": "횡단보도 앞",
+        "road_type": {
+          "key": "crosswalk",
+          "label": "횡단보도"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "signal_issue",
+          "label": "신호 문제"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "30초 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s28",
+      "script": "아까 교차로에서 정차 중인데 초록불로 바뀌었는데도 출발을 안 해서, 제가 확인하다가 차가 급가속했어요.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "stopped",
+          "label": "정차 중"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "hard_accel",
+          "label": "급가속"
+        },
+        "issue_type": {
+          "key": "signal_issue",
+          "label": "신호 문제"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "아까"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": "Intended next action is 출발, which is not an ego_action_before option."
+    },
+    {
+      "id": "s29",
+      "script": "방금 교차로에서 유턴하려고 하는데 맞은편 차가 빠르게 들어와서, 수동으로 테이크오버했습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "u_turn",
+          "label": "유턴"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "takeover",
+          "label": "테이크오버",
+          "in_taxonomy": false
+        },
+        "issue_type": {
+          "key": "other",
+          "label": "기타"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [
+        "ego_reaction:테이크오버/수동개입 (not in taxonomy)"
+      ],
+      "tags": [],
+      "notes": "Prior maneuver is 유턴. issue_type stays other because 유턴 is not an event type."
+    },
+    {
+      "id": "s30",
+      "script": "조금 전 직선로에서 센서가 뭔가 감지한 것 같은데 대상은 미확인이에요. 디스인게이지먼트 나서 제가 이어받았습니다.",
+      "expected": {
+        "location": "직선로",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "unknown",
+          "label": "미확인"
+        },
+        "reaction": {
+          "key": "takeover",
+          "label": "테이크오버",
+          "in_taxonomy": false
+        },
+        "issue_type": {
+          "key": "other",
+          "label": "기타"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [
+        "ego_reaction:디스인게이지먼트/테이크오버 (glossary term; not a reaction option)"
+      ],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s31",
+      "script": "조금 전 우회전 끝나고 경로가 이상하게 중앙선을 넘을 뻔해서, 제가 핸들 잡았습니다.",
+      "expected": {
+        "location": null,
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "right_turn",
+          "label": "우회전"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "oversteer",
+          "label": "과조향"
+        },
+        "issue_type": {
+          "key": "other",
+          "label": "기타"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "조금 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": "Road type inferred as intersection from 우회전; not explicitly said."
+    },
+    {
+      "id": "s32",
+      "script": "방금 정차 상태에서 출발하려는데 차가 한 번도 안 나가고 그대로 서 있어요. 확인 한번 부탁합니다.",
+      "expected": {
+        "location": null,
+        "road_type": null,
+        "prior_maneuver": {
+          "key": "start",
+          "label": "출발",
+          "in_taxonomy": false,
+          "also": {
+            "key": "stopped",
+            "label": "정차 중"
+          }
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "other",
+          "label": "기타"
+        },
+        "severity": {
+          "key": "low",
+          "label": "낮음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [
+        "ego_action_before:출발 (Kakao guide lists it; taxonomy v1 has 정차 중 only)"
+      ],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s33",
+      "script": "1분 전에 강남대로 직선 구간에서 흰색 승용차가 끼어들기 해서 급제동했어요.",
+      "expected": {
+        "location": "강남대로",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "cut_in",
+          "label": "끼어들기"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "1분 전"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s34",
+      "script": "공사구간 앞에서 정차했다가 방금 출발하는데, 라바콘이 하나 쓰러져 있어서 피했습니다.",
+      "expected": {
+        "location": "공사구간 앞",
+        "road_type": {
+          "key": "straight",
+          "label": "직선로"
+        },
+        "prior_maneuver": {
+          "key": "start",
+          "label": "출발",
+          "in_taxonomy": false
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "oversteer",
+          "label": "과조향"
+        },
+        "issue_type": {
+          "key": "construction_zone",
+          "label": "공사구간"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [
+        "ego_action_before:출발"
+      ],
+      "tags": [],
+      "notes": null
+    },
+    {
+      "id": "s35",
+      "script": "아까 유턴 직전인데 왼쪽에서 오토바이가 돌출해서 급감속했어요.",
+      "expected": {
+        "location": null,
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "u_turn",
+          "label": "유턴"
+        },
+        "target": {
+          "key": "two_wheeler",
+          "label": "이륜차"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "two_wheeler_intrusion",
+          "label": "이륜차 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "아까"
+      },
+      "taxonomy_gaps": [],
+      "tags": [],
+      "notes": "Prior maneuver is 유턴. Road type inferred; 유턴 typically at an intersection."
+    },
+    {
+      "id": "s36",
+      "script": "방금 횡단보도에서 보행자가… 아니, 이륜차예요. 킥보드가 차선으로 갑툭튀해서 급제동했습니다.",
+      "expected": {
+        "location": "횡단보도",
+        "road_type": {
+          "key": "crosswalk",
+          "label": "횡단보도"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "two_wheeler",
+          "label": "이륜차"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "two_wheeler_intrusion",
+          "label": "이륜차 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": "방금"
+      },
+      "taxonomy_gaps": [],
+      "tags": [
+        "tricky",
+        "mid_sentence_correction"
+      ],
+      "notes": "Speaker starts with 보행자 then corrects to 이륜차/킥보드. Gold labels follow the correction."
+    },
+    {
+      "id": "s37",
+      "script": "30초 전에 합류 구간에서 컷인이 한 번 있었고, 방금은 앞에 라바콘 공사구간 나와서 또 급감속했어요.",
+      "expected": {
+        "location": "합류 구간",
+        "road_type": {
+          "key": "merge",
+          "label": "합류로"
+        },
+        "prior_maneuver": {
+          "key": "going_straight",
+          "label": "직진"
+        },
+        "target": {
+          "key": "none",
+          "label": "없음"
+        },
+        "reaction": {
+          "key": "hard_decel",
+          "label": "급감속"
+        },
+        "issue_type": {
+          "key": "construction_zone",
+          "label": "공사구간"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "방금",
+        "secondary_events": [
+          {
+            "relative_time": "30초 전",
+            "issue_type": {
+              "key": "cut_in",
+              "label": "끼어들기"
+            },
+            "target": {
+              "key": "vehicle",
+              "label": "차량"
+            },
+            "road_type": {
+              "key": "merge",
+              "label": "합류로"
+            },
+            "reaction": {
+              "key": "hard_decel",
+              "label": "급감속"
+            }
+          }
+        ]
+      },
+      "taxonomy_gaps": [],
+      "tags": [
+        "tricky",
+        "two_events"
+      ],
+      "notes": "Two events in one note. Primary = more recent (방금 공사구간). Secondary = earlier cut-in."
+    },
+    {
+      "id": "s38",
+      "script": "아까 뭔가 이상하긴 했는데, 뭐였는지 잘 모르겠어요. 그냥 한 번 확인해 주세요.",
+      "expected": {
+        "location": null,
+        "road_type": null,
+        "prior_maneuver": null,
+        "target": {
+          "key": "unknown",
+          "label": "미확인"
+        },
+        "reaction": null,
+        "issue_type": {
+          "key": "other",
+          "label": "기타"
+        },
+        "severity": {
+          "key": "low",
+          "label": "낮음"
+        },
+        "relative_time": "아까"
+      },
+      "taxonomy_gaps": [],
+      "tags": [
+        "tricky",
+        "vague"
+      ],
+      "notes": "Deliberately underspecified. Most closed-set fields should stay null/unknown, not be guessed."
+    },
+    {
+      "id": "s39",
+      "script": "횡단보도에서 직진 중이었… 아, 아니에요. 교차로에서 좌회전하는 중이었어요. 보행자가 나와서 정차했습니다.",
+      "expected": {
+        "location": "교차로",
+        "road_type": {
+          "key": "intersection",
+          "label": "교차로"
+        },
+        "prior_maneuver": {
+          "key": "left_turn",
+          "label": "좌회전"
+        },
+        "target": {
+          "key": "pedestrian",
+          "label": "보행자"
+        },
+        "reaction": {
+          "key": "stop",
+          "label": "정차"
+        },
+        "issue_type": {
+          "key": "pedestrian_intrusion",
+          "label": "보행자 돌출"
+        },
+        "severity": {
+          "key": "high",
+          "label": "높음"
+        },
+        "relative_time": null
+      },
+      "taxonomy_gaps": [],
+      "tags": [
+        "tricky",
+        "mid_sentence_correction"
+      ],
+      "notes": "Corrects both place (횡단보도→교차로) and maneuver (직진→좌회전). Gold labels follow the correction. No explicit relative-time phrase."
+    },
+    {
+      "id": "s40",
+      "script": "방금 불법주정차 피하려고 차선 변경했는데, 잠깐, 그전에 십 초 전에 신호 인지도 좀 늦었던 것 같아요. 급가속했다가 다시 줄였습니다.",
+      "expected": {
+        "location": null,
+        "road_type": null,
+        "prior_maneuver": {
+          "key": "lane_change",
+          "label": "차선 변경"
+        },
+        "target": {
+          "key": "vehicle",
+          "label": "차량"
+        },
+        "reaction": {
+          "key": "hard_accel",
+          "label": "급가속"
+        },
+        "issue_type": {
+          "key": "illegal_parking_avoidance",
+          "label": "불법주정차 회피"
+        },
+        "severity": {
+          "key": "medium",
+          "label": "중간"
+        },
+        "relative_time": "방금",
+        "secondary_events": [
+          {
+            "relative_time": "십 초 전",
+            "issue_type": {
+              "key": "signal_issue",
+              "label": "신호 문제"
+            },
+            "target": {
+              "key": "none",
+              "label": "없음"
+            },
+            "reaction": {
+              "key": "hard_decel",
+              "label": "급감속"
+            },
+            "notes": "다시 줄였습니다 maps to 급감속 only loosely."
+          }
+        ]
+      },
+      "taxonomy_gaps": [],
+      "tags": [
+        "tricky",
+        "two_events",
+        "self_repair"
+      ],
+      "notes": "Primary = 방금 불법주정차 회피 + 차선 변경 + 급가속. Secondary = 십 초 전 신호 인지 지연."
+    }
+  ]
+}

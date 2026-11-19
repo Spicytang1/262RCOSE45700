@@ -142,14 +142,14 @@ def test_decisions_sends_every_question_once_and_maps_choice() -> None:
         incoming = _body(request)["questions"]
         answers = {}
         for question_id in incoming:
-            choice = {"event_type": "cut_in", "severity": "high", "ego_action_before": "u_turn"}.get(
+            choice = {"event_type": "cut_in", "severity": "high", "ego_action_before": "departure"}.get(
                 question_id, next(iter(incoming[question_id]["criteria"]))
             )
             answers[question_id] = {
                 "type": "choice",
                 "choice": choice,
                 "confidence": 0.91,
-                "probabilities": {choice: 0.8} if choice != "u_turn" else {"going_straight": 0.4},
+                "probabilities": {choice: 0.8} if choice != "departure" else {"going_straight": 0.4},
             }
         return httpx.Response(
             200,
@@ -165,6 +165,7 @@ def test_decisions_sends_every_question_once_and_maps_choice() -> None:
     assert set(payload["questions"]) == {"event_type", "severity", *GUIDE_IDS}
     assert all(item["type"] == "choice" for item in payload["questions"].values())
     assert "끼어들기" in payload["questions"]["event_type"]["criteria"]["cut_in"]
+    assert "u_turn" in payload["questions"]["ego_action_before"]["criteria"]
     assert "유턴" in payload["questions"]["ego_action_before"]["instructions"]
     by_id = {answer.id: answer for answer in result.answers}
     assert by_id["event_type"].value == "cut_in"

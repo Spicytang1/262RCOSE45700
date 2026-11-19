@@ -69,7 +69,17 @@ class GatewayClient:
 
     def post_json(self, path: str, payload: dict[str, object]) -> dict[str, object]:
         """chat/completions, decisions 같은 JSON POST."""
-        return self._send("POST", path, json_body=payload)
+        body = self._send("POST", path, json_body=payload)
+        if not isinstance(body, dict):
+            raise GatewayError("게이트웨이 JSON 응답이 아닙니다.")
+        return body
+
+    def post_bytes(self, path: str, payload: dict[str, object]) -> bytes:
+        """TTS 처럼 본문이 JSON 이 아닌 응답."""
+        body = self._send("POST", path, json_body=payload, raw=True)
+        if not isinstance(body, bytes):
+            raise GatewayError("게이트웨이 바이너리 응답이 아닙니다.")
+        return body
 
     def get_json(self, path: str, *, params: dict[str, str] | None = None) -> dict[str, object]:
         return self._send("GET", path, params=params)
@@ -96,7 +106,8 @@ class GatewayClient:
         params: dict[str, str] | None = None,
         data: FormData | None = None,
         files: dict[str, tuple[str, bytes, str]] | None = None,
-    ) -> dict[str, object]:
+        raw: bool = False,
+    ) -> dict[str, object] | bytes:
         self._require_config()
         url = build_url(self.base_url, path)
         request_kwargs: dict[str, object] = {}
@@ -137,6 +148,8 @@ class GatewayClient:
                         continue
                     if response.status_code >= 400:
                         raise error_from_response(response)
+                    if raw:
+                        return response.content
                     return _json_object(response)
                 if attempt >= self._max_retries:
                     raise last_error

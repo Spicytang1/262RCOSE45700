@@ -22,6 +22,7 @@ from app.models import Issue, Recording, Transcript
 from app.models.base import utcnow
 from app.schemas.common import Classified, Evidenced, IssueExtraction
 from app.services.glossary import correct_text, load_glossary
+from app.services.mentioned_time import resolve_mentioned_time
 from app.services.state_text import build_state_text
 from app.services.verify import apply_confidence_gate, apply_stt_confidence, verify_evidence
 
@@ -165,6 +166,13 @@ def _run(
                 settings,
             )
 
+    when = recorded_at or utcnow()
+    resolved = resolve_mentioned_time(
+        corrected,
+        mention=mentioned.value or mentioned.evidence,
+        words=words,
+        recorded_at=when,
+    )
     extraction = IssueExtraction(
         cause=cause,
         location=location,
@@ -175,8 +183,8 @@ def _run(
         ego_action_before=guided["ego_action_before"],
         target_type=guided["target_type"],
         ego_reaction=guided["ego_reaction"],
+        mentioned_time_resolved=resolved,
     )
-    when = recorded_at or utcnow()
     recording = Recording(audio_path=str(audio_path), recorded_at=when, user_id=user_id)
     db.add(recording)
     db.flush()

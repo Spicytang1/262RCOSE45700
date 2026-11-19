@@ -19,3 +19,7 @@ storage/
 data/audio/**
 !data/audio/**/.gitkeep
 !data/audio/**/
+eval/dataset/audio/**
+!eval/dataset/audio/.gitkeep
+eval/dataset/cache/**
+eval/dataset/reports/**

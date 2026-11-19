@@ -1,4 +1,8 @@
-"""STT 후보를 같은 녹음 세트로 비교한다. 1주차 선정용."""
+"""STT 후보를 비교한다. 가짜 음성 파일은 만들지 않는다.
+
+--source split 은 data/ 에 있는 정답·가설 텍스트만 비교한다.
+--source dataset 은 eval/dataset/audio 의 실제 녹음을 어댑터로 옮긴다. 파일이 없으면 건너뛴다.
+"""
 
 from __future__ import annotations
 
@@ -10,62 +14,82 @@ from app.adapters.stt.factory import get_stt_adapter
 from app.config import Settings
 from app.services.glossary import correct_text, load_glossary
 
+from eval.augment_noise import DATASET
 from eval.common import cer, load_items, mean_std
+from eval.run_eval import audio_for, load_scripts
 from eval.stt_metrics import term_recall
 
 
-def _settings_for(provider: str) -> Settings:
-    return Settings(_env_file=None, stt_provider=provider)  # type: ignore[arg-type]
+def evaluate_split(items: list[dict[str, object]]) -> dict[str, str]:
+    glossary = load_glossary()
+    cer_scores: list[float] = []
+    hint_off: list[float] = []
+    for item in items:
+        reference = str(item["reference_text"])
+        hypothesis = correct_text(str(item["hypothesis_text"]), glossary)
+        cer_scores.append(cer(reference, hypothesis))
+        score = term_recall(reference, hypothesis, glossary.terms)
+        if score is not None:
+            hint_off.append(score)
+    return {"CER": mean_std(cer_scores), "term_recall": mean_std(hint_off), "samples": str(len(items))}
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="STT 후보 비교")
+def evaluate_files(provider: str, audio_dir: Path) -> dict[str, str]:
+    settings = Settings(_env_file=None, stt_provider=provider)  # type: ignore[arg-type]
+    adapter = get_stt_adapter(settings)
+    glossary = load_glossary()
+    cer_scores: list[float] = []
+    recalls: list[float] = []
+    latencies: list[float] = []
+    missing = 0
+    for item in load_scripts():
+        audio = audio_for(str(item["id"]), "original", audio_dir)
+        if audio is None:
+            missing += 1
+            continue
+        started = time.perf_counter()
+        transcript = adapter.transcribe(audio, [])
+        latencies.append(time.perf_counter() - started)
+        corrected = correct_text(transcript.text, glossary)
+        reference = str(item["script"])
+        cer_scores.append(cer(reference, corrected))
+        score = term_recall(reference, corrected, glossary.terms)
+        if score is not None:
+            recalls.append(score)
+    cost = "0 (mock)" if provider == "mock" else "STT 6cr/min, 용어 힌트 없음"
+    return {
+        "CER": mean_std(cer_scores),
+        "term_recall": mean_std(recalls),
+        "latency_s": mean_std(latencies),
+        "missing": str(missing),
+        "hints": str(adapter.capabilities.supports_hints),
+        "cost": cost,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="STT 비교. 실제 파일이 없으면 만들지 않고 건너뜁니다.")
+    parser.add_argument("--source", choices=["dataset", "split"], default="dataset")
     parser.add_argument("--providers", default="mock")
     parser.add_argument("--split", default="tune", choices=["tune", "test", "demo"])
-    parser.add_argument("--runs", type=int, default=1)
-    parser.add_argument("--condition", default=None)
-    args = parser.parse_args()
-    items = load_items(args.split, args.condition)
-    glossary = load_glossary()
-    print("provider\tCER\tterm_hint_on\tterm_hint_off\tlatency_s\tword_confidence\ttimestamps\thints\tcost")
-    for provider in [item.strip() for item in args.providers.split(",") if item.strip()]:
-        try:
-            adapter = get_stt_adapter(_settings_for(provider))
-            capabilities = adapter.capabilities
-        except NotImplementedError:
-            print(f"{provider}\t미구현\t미구현\t미구현\t미구현\tTODO\tTODO\tTODO\t벤더 확정 후 기입")
-            continue
-        cer_scores: list[float] = []
-        hint_on: list[float] = []
-        hint_off: list[float] = []
-        latencies: list[float] = []
-        for _ in range(args.runs):
-            for item in items:
-                audio = Path(f"/tmp/{item['id']}.wav")
-                audio.write_bytes(b"RIFF")
-                sidecar = Path(str(audio) + ".transcript.txt")
-                sidecar.write_text(str(item["hypothesis_text"]), encoding="utf-8")
-                started = time.perf_counter()
-                with_hints = adapter.transcribe(audio, glossary.terms if capabilities.supports_hints else [])
-                latencies.append(time.perf_counter() - started)
-                without_hints = adapter.transcribe(audio, [])
-                reference = str(item["reference_text"])
-                corrected = correct_text(with_hints.text, glossary)
-                cer_scores.append(cer(reference, corrected))
-                on_score = term_recall(reference, corrected, glossary.terms)
-                off_score = term_recall(reference, correct_text(without_hints.text, glossary), glossary.terms)
-                if on_score is not None:
-                    hint_on.append(on_score)
-                if off_score is not None:
-                    hint_off.append(off_score)
-                sidecar.unlink(missing_ok=True)
-        cost = "0 (mock)" if provider == "mock" else "TODO: 벤더 확정 후 기입"
+    parser.add_argument("--audio-dir", type=Path, default=DATASET / "audio")
+    args = parser.parse_args(argv)
+    if args.source == "split":
+        summary = evaluate_split(load_items(args.split, None))
         print(
-            f"{provider}\t{mean_std(cer_scores)}\t{mean_std(hint_on)}\t{mean_std(hint_off)}\t"
-            f"{mean_std(latencies)}\t{capabilities.supports_word_confidence}\t"
-            f"{capabilities.supports_word_timestamps}\t{capabilities.supports_hints}\t{cost}"
+            f"split={args.split}\tCER {summary['CER']}\tterm_recall {summary['term_recall']}\t"
+            f"samples {summary['samples']}"
         )
+        return 0
+    for provider in [item.strip() for item in args.providers.split(",") if item.strip()]:
+        summary = evaluate_files(provider, args.audio_dir)
+        print(
+            f"{provider}\tCER {summary['CER']}\tterm_recall {summary['term_recall']}\t"
+            f"latency {summary['latency_s']}\tmissing {summary['missing']}\t"
+            f"hints {summary['hints']}\t{summary['cost']}"
+        )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

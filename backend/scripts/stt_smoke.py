@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.adapters.audio import AudioNormalizeError
@@ -23,6 +24,7 @@ from app.adapters.gateway.errors import GatewayError
 from app.adapters.stt.factory import get_stt_adapter
 from app.config import Settings
 from app.domain.taxonomy.questions import build_questions
+from app.services.mentioned_time import resolve_mentioned_time
 from app.services.state_text import build_state_text
 
 
@@ -73,6 +75,16 @@ def _run_llm(settings: Settings, text: str) -> int:
         print(str(exc), file=sys.stderr)
         return 1
     print(extracted.model_dump_json(ensure_ascii=False))
+    resolved = resolve_mentioned_time(
+        text,
+        mention=extracted.mentioned_time.value or extracted.mentioned_time.evidence,
+        words=None,
+        recorded_at=datetime.now(UTC),
+    )
+    if resolved is None:
+        print("mentioned_time_resolved=null")
+    else:
+        print(resolved.model_dump_json(ensure_ascii=False))
     print(classified.model_dump_json(ensure_ascii=False))
     return 0
 

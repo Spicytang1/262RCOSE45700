@@ -1197,6 +1197,16 @@
           },
           "ego_reaction": {
             "$ref": "#/components/schemas/Classified_str_"
+          },
+          "mentioned_time_resolved": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResolvedMentionedTime"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1842,6 +1852,53 @@
             }
           }
         ]
+      },
+      "ResolvedMentionedTime": {
+        "properties": {
+          "expression": {
+            "type": "string",
+            "title": "Expression"
+          },
+          "offset_seconds": {
+            "type": "number",
+            "title": "Offset Seconds"
+          },
+          "uncertainty_seconds": {
+            "type": "number",
+            "title": "Uncertainty Seconds"
+          },
+          "anchor": {
+            "type": "string",
+            "title": "Anchor"
+          },
+          "estimated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Estimated At"
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window Start"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expression",
+          "offset_seconds",
+          "uncertainty_seconds",
+          "anchor",
+          "estimated_at",
+          "window_start",
+          "window_end"
+        ],
+        "title": "ResolvedMentionedTime",
+        "description": "상대 표현을 녹음 시각에서 되돌린 추정 시각. 없는 녹음은 null."
       },
       "SummaryStats": {
         "properties": {

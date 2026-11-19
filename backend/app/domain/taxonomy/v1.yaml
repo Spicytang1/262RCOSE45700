@@ -96,6 +96,10 @@ guide:
         label: 우회전
         description: 이슈 직전에 우회전하고 있었다
         keywords: ["우회전"]
+      - key: u_turn
+        label: 유턴
+        description: 이슈 직전에 유턴하고 있었다
+        keywords: ["유턴"]
       - key: stopped
         label: 정차 중
         description: 이슈 직전에 정차해 있었다
