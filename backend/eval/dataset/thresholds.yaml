@@ -1,11 +1,12 @@
-# 자리표시 값. 중간 발표 전에 사람이 정한다. 코드는 이 파일을 그대로 읽는다.
+# 팀 목표치. 코드는 이 파일을 그대로 읽는다. cer/wer/macro F1 은 아직 자리표시 값.
 metrics:
   cer_max: 0.35
   wer_max: 0.5
-  term_recall_after_min: 0.8
+  term_recall_after_min: 0.9
   event_type_macro_f1_min: 0.6
-  field_accuracy_min: 0.6
-  hallucination_max: 0.15
+  field_accuracy_min: 0.85
+  hallucination_max: 0.05
+  mentioned_time_resolved_min: 0.9
 
 credits:
   stt_per_minute: 6

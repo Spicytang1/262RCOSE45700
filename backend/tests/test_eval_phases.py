@@ -21,9 +21,11 @@ from eval.run_eval import (
     load_scripts,
     main,
     mock_provider_warning,
+    passes,
     plan_condition,
     render_report,
     run_cached_pipeline,
+    summarize_condition,
 )
 from eval.stage_cache import ensure_stage, text_sha256
 from eval.synthesize_speech import synthesize_scripts
@@ -219,6 +221,62 @@ def test_resolved_time_scores_against_gold() -> None:
     }
     scored = score_sample(script, record, ["컷인"])
     assert scored["mentioned_time_resolved_correct"] is True
+
+
+def test_team_targets_and_time_resolution_pass_fail() -> None:
+    import yaml
+    from eval.run_eval import DATASET
+
+    metrics = yaml.safe_load((DATASET / "thresholds.yaml").read_text(encoding="utf-8"))["metrics"]
+    assert metrics["field_accuracy_min"] == 0.85
+    assert metrics["hallucination_max"] == 0.05
+    assert metrics["term_recall_after_min"] == 0.9
+    assert metrics["mentioned_time_resolved_min"] == 0.9
+    good = {
+        "field_accuracy": 0.9,
+        "hallucination": 0.0,
+        "term_recall_after": 0.95,
+        "mentioned_time_resolved_accuracy": 0.92,
+    }
+    assert all(passes(good, metrics).values())
+    bad = {**good, "mentioned_time_resolved_accuracy": 0.8}
+    verdicts = passes(bad, metrics)
+    assert verdicts["mentioned_time_resolved_min"] is False
+    assert verdicts["field_accuracy_min"] is True
+
+
+def test_summary_reports_accuracy_per_field() -> None:
+    def sample(correct: bool) -> dict[str, object]:
+        return {
+            "cer": 0.0,
+            "wer": 0.0,
+            "fields": {
+                "event_type": {"gold": "cut_in", "predicted": "cut_in", "correct": True},
+                "road_type": {"gold": "a", "predicted": "a" if correct else "b", "correct": correct},
+            },
+        }
+
+    summary = summarize_condition([sample(True), sample(False)], ["cut_in"])
+    assert summary["field_acc_event_type"] == 1.0
+    assert summary["field_acc_road_type"] == 0.5
+    report = render_report({"original": summary}, {"field_accuracy_min": 0.85})
+    assert "항목별 정확도" in report
+
+
+def test_m4a_duration_uses_ffprobe(tmp_path: Path) -> None:
+    import shutil
+    import subprocess
+
+    from eval.run_eval import _duration_seconds
+
+    if shutil.which("ffmpeg") is None:
+        return
+    target = tmp_path / "t.m4a"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=1.5", str(target)],
+        check=True,
+    )
+    assert abs(_duration_seconds(target) - 1.5) < 0.2
 
 
 def _plan(audio: Path, cache: Path, **overrides: str) -> dict[str, float]:
