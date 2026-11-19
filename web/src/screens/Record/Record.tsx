@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { MicOff, Square } from "lucide-react";
 import Button from "@/components/Button";
 import { formatTime } from "@/lib/formatTime";
-import useAudioLevels, { INTERVAL_MS } from "./useAudioLevels";
+import useAudioLevels from "./useAudioLevels";
 import Waveform from "./Waveform";
 
 /** 녹음이 끝난 이유: 사용자가 직접 끝냈는지, 무음으로 자동 종료됐는지 */
@@ -13,22 +13,19 @@ type Props = {
   onCancel: () => void;
 };
 
-const SILENCE_LEVEL = 0.05; // 이 값 미만이면 무음으로 본다 (0~1, 현장 테스트 후 조정)
 const SILENCE_MS = 4000; // 자동 종료까지 필요한 무음 지속 시간
-const SILENCE_SAMPLES = Math.ceil(SILENCE_MS / INTERVAL_MS); // 50회
 
 export default function Record({ onFinish, onCancel }: Props) {
   const [seconds, setSeconds] = useState(0);
   const [ready, setReady] = useState(false); // 녹음이 실제로 시작됐는지
   const [error, setError] = useState("");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
-  const levels = useAudioLevels(micStream);
+  const { levels, quietMs } = useAudioLevels(micStream);
+  const silenceRatio = Math.min(quietMs / SILENCE_MS, 1);
 
   // useRef: 화면을 다시 그리지 않고 값을 계속 들고 있는 상자
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const silentCountRef = useRef(0); // 연속 무음 측정 횟수
-  const heardSpeechRef = useRef(false); // 첫 소리가 들어온 뒤인지 여부
 
   useEffect(() => {
     let ignore = false; // 화면이 먼저 사라졌는지 표시
@@ -94,27 +91,13 @@ export default function Record({ onFinish, onCancel }: Props) {
     recorder.stop();
   }
 
-  // 측정값이 갱신될 때마다 무음 지속 여부 확인 (4초 무음이면 자동 종료)
+  const finishRef = useRef(handleFinish);
+  useEffect(() => { finishRef.current = handleFinish; });
+
   useEffect(() => {
     if (!ready || error) return;
-
-    const latest = levels[levels.length - 1];
-
-    if (latest >= SILENCE_LEVEL) {
-      heardSpeechRef.current = true;
-      silentCountRef.current = 0;
-      return;
-    }
-
-    // 아직 말을 시작하기 전이면 무음을 세지 않는다
-    if (!heardSpeechRef.current) return;
-
-    silentCountRef.current += 1;
-    if (silentCountRef.current >= SILENCE_SAMPLES) {
-      silentCountRef.current = 0;
-      handleFinish("silence");
-    }
-  }, [levels, ready, error]);
+    if (quietMs >= SILENCE_MS) finishRef.current("silence");
+  }, [quietMs, ready, error]);
 
   return (
     <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-ink px-5 pt-6 pb-8 text-white">
@@ -146,7 +129,7 @@ export default function Record({ onFinish, onCancel }: Props) {
           </p>
         ) : (
           <p className="text-[16px] font-semibold text-kakao" aria-live="polite">
-            {ready ? "듣는 중이에요. 4초 동안 조용하면 자동으로 끝나요" : "마이크 준비 중..."}
+            {!ready ? "마이크를 준비하고 있어요" : silenceRatio > 0.25 ? `조용해서 ${Math.max(1, Math.ceil((1 - silenceRatio) * SILENCE_MS / 1000))}초 뒤에 녹음이 끝나요` : "듣고 있어요"}
           </p>
         )}
 
@@ -154,13 +137,16 @@ export default function Record({ onFinish, onCancel }: Props) {
         {!error && (
           <div className="mt-10 w-full">
             <Waveform levels={levels} />
+            <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-white/15" aria-hidden="true">
+              <div className="h-full rounded-full bg-kakao transition-[width] duration-100 ease-linear" style={{ width: `${silenceRatio * 100}%` }} />
+            </div>
           </div>
         )}
       </section>
 
       <section className="flex flex-col gap-2">
-        <Button onClick={() => handleFinish("manual")} disabled={!ready} className="w-full disabled:bg-white/15 disabled:text-white/40">
-          <Square className="size-4 fill-current" aria-hidden="true" />
+        <Button onClick={() => handleFinish("manual")} disabled={!ready} className="h-[84px] w-full rounded-[24px] text-[22px] font-extrabold disabled:bg-white/15 disabled:text-white/40">
+          <Square className="size-6 fill-current" aria-hidden="true" />
           녹음 끝내기
         </Button>
         <Button variant="ghostDark" onClick={onCancel} className="w-full text-[16px] font-semibold">

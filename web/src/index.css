@@ -13,12 +13,24 @@
 
   --color-ink: #191919;
   --color-ink-sub: #4a4f58;
-  --color-ink-muted: #7e8593;
+  --color-ink-muted: #667085;
   --color-line: #e8eaed;
   --color-surface: #f5f6f8;
 
   --color-danger: #e53935;
+  --color-danger-ink: #b42318;
+  --color-danger-soft: #ff8a80;
   --color-warning: #e08a00;
+  --color-warning-soft: #fff0e5;
+  --color-warning-ink: #944000;
+  --color-ok: #16a55c;
+  --color-ok-soft: #e8f5ed;
+  --color-ok-ink: #17633b;
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.05);
+  --shadow-menu: 0 8px 28px rgba(25, 25, 25, 0.14);
+  --shadow-dock: 0 -10px 24px rgba(25, 25, 25, 0.07);
+  --shadow-float: 0 2px 6px rgba(16, 24, 40, 0.06), 0 14px 36px rgba(16, 24, 40, 0.14);
 
   --font-sans: "Kakao Small Sans", "Pretendard Variable", Pretendard,
     -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
@@ -26,9 +38,11 @@
 
   --radius-button: 12px;
   --radius-card: 16px;
+  --radius-panel: 24px;
 
   --animate-pulse-ring: pulse-ring 2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
   --animate-blink: blink 1.2s ease-in-out infinite;
+  --animate-shake: shake 0.36s ease-out;
 
   @keyframes pulse-ring {
     0% {
@@ -38,6 +52,19 @@
     100% {
       transform: scale(1.45);
       opacity: 0;
+    }
+  }
+
+  @keyframes shake {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-6px);
+    }
+    75% {
+      transform: translateX(6px);
     }
   }
 
@@ -52,11 +79,142 @@
   }
 }
 
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.menu-in {
+  animation: menu-in 0.14s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.rise {
+  animation: rise 0.55s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes page-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-only {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.page-forward {
+  animation: page-in-right 0.32s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+.page-back {
+  animation: page-in-left 0.32s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+.page-fade,
+.backdrop-in {
+  animation: fade-only 0.3s ease-out backwards;
+}
+
+.pop-in {
+  animation: pop-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+.fade-in,
+.reveal {
+  animation: rise 0.25s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+.sheet-up {
+  animation: sheet-up 0.3s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .menu-in,
+  .page-forward,
+  .page-back,
+  .page-fade,
+  .backdrop-in,
+  .pop-in,
+  .fade-in,
+  .reveal,
+  .sheet-up {
+    animation: none;
+  }
+}
+
 html {
   -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
 }
 
 body {
+  overflow-x: clip;
   background: var(--color-surface);
   color: var(--color-ink);
   letter-spacing: -0.01em;
