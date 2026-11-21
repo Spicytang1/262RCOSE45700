@@ -65,6 +65,7 @@ def run_pipeline(
     map_version: str | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
+    drive_session_id: uuid.UUID | None = None,
 ) -> Issue:
     try:
         return _run(
@@ -79,6 +80,7 @@ def run_pipeline(
             map_version=map_version,
             latitude=latitude,
             longitude=longitude,
+            drive_session_id=drive_session_id,
         )
     except (NotImplementedError, GatewayError, AudioNormalizeError) as exc:
         raise ExternalCallError(str(exc)) from exc
@@ -97,6 +99,7 @@ def _run(
     map_version: str | None,
     latitude: float | None,
     longitude: float | None,
+    drive_session_id: uuid.UUID | None,
 ) -> Issue:
     taxonomy = load_taxonomy()
     glossary = load_glossary()
@@ -185,7 +188,12 @@ def _run(
         ego_reaction=guided["ego_reaction"],
         mentioned_time_resolved=resolved,
     )
-    recording = Recording(audio_path=str(audio_path), recorded_at=when, user_id=user_id)
+    recording = Recording(
+        audio_path=str(audio_path),
+        recorded_at=when,
+        user_id=user_id,
+        drive_session_id=drive_session_id,
+    )
     db.add(recording)
     db.flush()
     db.add(

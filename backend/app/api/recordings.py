@@ -8,11 +8,20 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.errors import EXTERNAL_FAILED, RESP_401, RESP_413, RESP_422, RESP_503, UPLOAD_TOO_LARGE
+from app.api.errors import (
+    DRIVE_NOT_OPEN,
+    EXTERNAL_FAILED,
+    RESP_401,
+    RESP_413,
+    RESP_422,
+    RESP_503,
+    UPLOAD_TOO_LARGE,
+)
 from app.auth.deps import get_current_user, get_db, get_settings
 from app.config import Settings
 from app.models import Issue, Recording, User
 from app.schemas.issues import RecordingResult
+from app.services.drives import open_drive_for_operator
 from app.services.issues import to_issue_out
 from app.services.pipeline import ExternalCallError, run_pipeline
 
@@ -72,11 +81,14 @@ def create_recording(
     map_version: str | None = Form(default=None, description="맵 버전"),
     latitude: float | None = Form(default=None, description="위도"),
     longitude: float | None = Form(default=None, description="경도"),
+    drive_session_id: uuid.UUID | None = Form(default=None, description="진행 중인 본인 운행 회차"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> RecordingResult:
     _check_coordinates(latitude, longitude)
+    if drive_session_id is not None and open_drive_for_operator(db, drive_session_id, user) is None:
+        raise HTTPException(status_code=422, detail=DRIVE_NOT_OPEN)
     path = _store_upload(audio, settings.storage_dir, settings.max_upload_bytes)
     try:
         issue = run_pipeline(
@@ -91,6 +103,7 @@ def create_recording(
             map_version=map_version,
             latitude=latitude,
             longitude=longitude,
+            drive_session_id=drive_session_id,
         )
     except ExternalCallError as exc:
         path.unlink(missing_ok=True)
@@ -113,4 +126,5 @@ def create_recording(
         extraction=viewed.ai_extraction,
         ticket=viewed.ticket,
         pipeline_meta=viewed.pipeline_meta,
+        drive_session_id=stored.recording.drive_session_id,
     )

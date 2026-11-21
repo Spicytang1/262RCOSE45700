@@ -130,6 +130,8 @@ backend/
     state_text.py          # 분류기 입력. 전사문 + cause + location 만
     summary.py             # 건수·분포는 SQL. 문장만 어댑터에 맡김
     issues.py              # 조회 범위, 수정 저장
+    drives.py              # 운행 회차 시작·종료
+    reviews.py             # 녹음과 분리한 검토 저장
     users.py               # 계정 생성·비활성화(세션 폐기)
   app/domain/
     taxonomy/v1.yaml       # 사건 유형, 심각도, 발화 보기. 코드 수정 없이 목록 변경
@@ -149,10 +151,12 @@ backend/
 | `users` | 계정. 역할은 `operator` 또는 `admin`. 비밀번호는 argon2 해시만 |
 | `auth_sessions` | 로그인 1회. access token 의 `sid`. 폐기되면 그 세션의 access token 도 즉시 거절 |
 | `refresh_tokens` | refresh 원문의 SHA-256. 회전 시 기존 행은 `used_at`, 새 행은 `replaced_by_id` |
-| `recordings` | 음성 파일 경로, 발화 시각, 녹음한 사용자 |
+| `recordings` | 음성 파일 경로, 발화 시각, 녹음한 사용자, 연결된 운행 회차 |
 | `transcripts` | STT 원문(`raw_text`)과 용어 보정본(`corrected_text`), 단어 시각·신뢰도 |
 | `issues` | AI 결과와 사람 확인값, 상태, 파이프라인 메타, 지라에 올릴 차량 번호·발생일자·버전·위경도·이슈 내용 |
 | `issue_edits` | 필드별 수정 전 값, 수정 후 값, 수정한 사용자 |
+| `drive_sessions` | 감독관별 운행 회차 번호, 시작·종료 시각. 진행 중 회차는 사용자마다 하나 |
+| `recording_reviews` | 녹음과 1:1 인 검토. 제목, `new`/`reviewed`/`flagged`, 정리 항목, 기타 입력, 메모. AI 추출값과 별개 |
 
 ### 어디에 손을 대는지
 
@@ -192,6 +196,8 @@ backend/
 보기는 임시안입니다. 1주차 멘토링 후 `v1.yaml` 만 고치면 됩니다.
 
 `0001_initial` 은 팀에 공유하기 전이라 직접 고쳐 왔습니다. 이전 버전으로 만든 로컬 DB(컬럼이 없거나 삭제된 `vehicle_logs` 테이블이 남아 있는 경우)는 `docker compose down -v` 후 `make up` 으로 볼륨을 다시 만듭니다. 공유한 뒤에는 `0001` 을 고치지 않고 새 리비전을 추가합니다.
+
+운행 회차와 검토는 프론트 `recordingStore` 의 `sessions`, `reviews` 에 대응합니다. `POST /api/drives` 로 시작하고 `POST /api/drives/{id}/end` 로 끝냅니다. 녹음 업로드의 `drive_session_id` 는 진행 중인 본인 회차만 받습니다. 검토는 `PUT /api/reviews/{recording_id}` 로 통째로 저장하고, 이슈의 `draft`/`confirmed` 와는 다른 상태입니다. 테이블은 `0002_drives_reviews` 에 있습니다. 이미 `0001` 만 적용한 Postgres 는 `make migrate` 로 이어서 올리면 됩니다.
 
 ## 배포
 

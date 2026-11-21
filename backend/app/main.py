@@ -7,8 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.drives import router as drives_router
 from app.api.issues import router as issues_router
 from app.api.recordings import router as recordings_router
+from app.api.reviews import router as reviews_router
 from app.api.summary import router as summary_router
 from app.api.users import router as users_router
 from app.config import Settings, assert_runtime_secrets, get_settings
@@ -19,6 +21,8 @@ OPENAPI_TAGS = [
     {"name": "auth", "description": "로그인, 토큰 갱신, 로그아웃"},
     {"name": "users", "description": "관리자용 사용자 관리"},
     {"name": "recordings", "description": "녹음 업로드와 파이프라인"},
+    {"name": "drives", "description": "운행 회차 시작과 종료"},
+    {"name": "reviews", "description": "녹음 검토 저장"},
     {"name": "issues", "description": "이슈 조회와 오퍼레이터 확인"},
     {"name": "summary", "description": "관리자용 주간 요약"},
 ]
@@ -67,6 +71,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(users_router, prefix="/api/users", tags=["users"])
     app.include_router(recordings_router, prefix="/api/recordings", tags=["recordings"])
+    app.include_router(drives_router, prefix="/api/drives", tags=["drives"])
+    app.include_router(reviews_router, prefix="/api/reviews", tags=["reviews"])
     app.include_router(issues_router, prefix="/api/issues", tags=["issues"])
     app.include_router(summary_router, prefix="/api/summary", tags=["summary"])
 

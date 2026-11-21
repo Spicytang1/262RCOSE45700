@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, String, Text, Uuid
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import JSON_VARIANT, Base, TimestampMixin, utcnow, uuid_pk
@@ -20,6 +20,7 @@ class User(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     sessions: Mapped[list[AuthSession]] = relationship(back_populates="user")
+    drive_sessions: Mapped[list[DriveSession]] = relationship(back_populates="user")
 
 
 class AuthSession(Base):
@@ -36,6 +37,21 @@ class AuthSession(Base):
 
     user: Mapped[User] = relationship(back_populates="sessions")
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(back_populates="session")
+
+
+class DriveSession(Base):
+    """프론트 IndexedDB sessions. 감독관 한 명의 운행 회차."""
+
+    __tablename__ = "drive_sessions"
+    __table_args__ = (UniqueConstraint("user_id", "number", name="uq_drive_sessions_user_number"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="drive_sessions")
 
 
 class RefreshToken(Base):
@@ -61,9 +77,14 @@ class Recording(Base, TimestampMixin):
     audio_path: Mapped[str] = mapped_column(Text, nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    drive_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("drive_sessions.id"), nullable=True
+    )
 
     transcript: Mapped[Transcript | None] = relationship(back_populates="recording")
     issue: Mapped[Issue | None] = relationship(back_populates="recording")
+    review: Mapped[RecordingReview | None] = relationship(back_populates="recording")
+    drive_session: Mapped[DriveSession | None] = relationship()
 
 
 class Transcript(Base):
@@ -79,6 +100,26 @@ class Transcript(Base):
     stt_provider: Mapped[str] = mapped_column(String(32), nullable=False)
 
     recording: Mapped[Recording] = relationship(back_populates="transcript")
+
+
+class RecordingReview(Base, TimestampMixin):
+    """프론트 IndexedDB reviews. 음성 원본과 분리해 두는 검토 기록."""
+
+    __tablename__ = "recording_reviews"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    recording_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("recordings.id"), unique=True, nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    fields: Mapped[dict] = mapped_column(JSON_VARIANT, nullable=False)
+    other_fields: Mapped[list] = mapped_column(JSON_VARIANT, nullable=False)
+    other_field_values: Mapped[dict] = mapped_column(JSON_VARIANT, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    recording: Mapped[Recording] = relationship(back_populates="review")
 
 
 class Issue(Base, TimestampMixin):

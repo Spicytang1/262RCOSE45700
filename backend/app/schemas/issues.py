@@ -41,6 +41,7 @@ class RecordingResult(BaseModel):
     extraction: IssueExtraction
     ticket: IssueTicket
     pipeline_meta: dict
+    drive_session_id: uuid.UUID | None = None
 
     model_config = ConfigDict(
         json_schema_extra={

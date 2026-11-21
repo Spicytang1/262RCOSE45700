@@ -450,6 +450,338 @@
         ]
       }
     },
+    "/api/drives": {
+      "get": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "운행 회차 목록",
+        "description": "오퍼레이터는 자신의 회차만, 관리자는 전체를 봅니다. 최신 시작이 먼저입니다.",
+        "operationId": "get_drives_api_drives_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DriveOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Drives Api Drives Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "운행 시작",
+        "description": "진행 중인 회차가 있으면 새 번호를 만들지 않고 그 회차를 돌려줍니다.",
+        "operationId": "post_drive_api_drives_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/drives/{drive_id}/end": {
+      "post": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "운행 종료",
+        "description": "이미 끝난 회차도 같은 종료 시각을 유지한 채 성공합니다. 다른 오퍼레이터의 회차는 404 입니다.",
+        "operationId": "post_end_drive_api_drives__drive_id__end_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "drive_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drive Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "운행 회차를 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "운행 회차를 찾을 수 없습니다."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "검토 목록",
+        "description": "오퍼레이터는 자신의 녹음 검토만, 관리자는 전체를 봅니다.",
+        "operationId": "get_reviews_api_reviews_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewOut"
+                  },
+                  "type": "array",
+                  "title": "Response Get Reviews Api Reviews Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/reviews/{recording_id}": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "검토 조회",
+        "description": "녹음이 없거나 다른 오퍼레이터의 녹음이면 404 입니다. 검토를 한 번도 저장하지 않아도 404 입니다.",
+        "operationId": "get_recording_review_api_reviews__recording_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "녹음을 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "녹음을 찾을 수 없습니다."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "검토 저장",
+        "description": "제목, 상태, 정리 항목, 기타 입력, 메모를 통째로 저장합니다. 음성 원본과 AI 추출값은 바꾸지 않습니다.",
+        "operationId": "put_recording_review_api_reviews__recording_id__put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "녹음을 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "녹음을 찾을 수 없습니다."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "요청 형식이 올바르지 않습니다"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/issues": {
       "get": {
         "tags": [
@@ -991,6 +1323,19 @@
             ],
             "title": "Longitude",
             "description": "경도"
+          },
+          "drive_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Session Id",
+            "description": "진행 중인 본인 운행 회차"
           }
         },
         "type": "object",
@@ -1097,6 +1442,59 @@
         },
         "type": "object",
         "title": "Classified[str]"
+      },
+      "DriveOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Operator Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "operator_id",
+          "number",
+          "started_at",
+          "ended_at"
+        ],
+        "title": "DriveOut",
+        "description": "프론트 DriveSession. operator_id 는 로그인한 감독관이다.",
+        "examples": [
+          {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "number": 3,
+            "operator_id": "8d8a0a3e-3c1e-4b7a-9d2a-6e3c1b2a4f10",
+            "started_at": "2026-11-18T01:00:00Z"
+          }
+        ]
       },
       "Evidenced_str_": {
         "properties": {
@@ -1725,6 +2123,18 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Pipeline Meta"
+          },
+          "drive_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Session Id"
           }
         },
         "type": "object",
@@ -1853,52 +2263,167 @@
           }
         ]
       },
-      "ResolvedMentionedTime": {
+      "ReviewOut": {
         "properties": {
-          "expression": {
+          "title": {
             "type": "string",
-            "title": "Expression"
+            "maxLength": 120,
+            "title": "Title",
+            "default": ""
           },
-          "offset_seconds": {
-            "type": "number",
-            "title": "Offset Seconds"
-          },
-          "uncertainty_seconds": {
-            "type": "number",
-            "title": "Uncertainty Seconds"
-          },
-          "anchor": {
+          "status": {
             "type": "string",
-            "title": "Anchor"
+            "enum": [
+              "new",
+              "reviewed",
+              "flagged"
+            ],
+            "title": "Status"
           },
-          "estimated_at": {
+          "note": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Note",
+            "default": ""
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fields"
+          },
+          "other_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Other Fields"
+          },
+          "other_field_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Other Field Values"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "recording_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Recording Id"
+          },
+          "updated_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Estimated At"
-          },
-          "window_start": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Window Start"
-          },
-          "window_end": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Window End"
+            "title": "Updated At"
           }
         },
         "type": "object",
         "required": [
-          "expression",
-          "offset_seconds",
-          "uncertainty_seconds",
-          "anchor",
-          "estimated_at",
-          "window_start",
-          "window_end"
+          "status",
+          "id",
+          "recording_id",
+          "updated_at"
         ],
-        "title": "ResolvedMentionedTime",
-        "description": "상대 표현을 녹음 시각에서 되돌린 추정 시각. 없는 녹음은 null."
+        "title": "ReviewOut",
+        "examples": [
+          {
+            "fields": {
+              "previousAction": "직진",
+              "reaction": "급감속",
+              "roadType": "직선로",
+              "targetType": "보행자"
+            },
+            "id": "11111111-1111-4111-8111-111111111111",
+            "note": "횡단보도 앞에서 확인함",
+            "other_field_values": {
+              "reaction": "수동 감속"
+            },
+            "other_fields": [
+              "reaction"
+            ],
+            "recording_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "status": "reviewed",
+            "title": "보행자 급감속",
+            "updated_at": "2026-11-18T01:05:00Z"
+          }
+        ]
+      },
+      "ReviewWrite": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Title",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "reviewed",
+              "flagged"
+            ],
+            "title": "Status"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Note",
+            "default": ""
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fields"
+          },
+          "other_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Other Fields"
+          },
+          "other_field_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Other Field Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ReviewWrite",
+        "description": "프론트 RecordingReview 전체. 자동 저장은 이 스냅샷을 통째로 보낸다.",
+        "examples": [
+          {
+            "fields": {
+              "previousAction": "직진",
+              "reaction": "급감속",
+              "roadType": "직선로",
+              "targetType": "보행자"
+            },
+            "note": "횡단보도 앞에서 확인함",
+            "other_field_values": {
+              "reaction": "수동 감속"
+            },
+            "other_fields": [
+              "reaction"
+            ],
+            "status": "reviewed",
+            "title": "보행자 급감속"
+          }
+        ]
       },
       "SummaryStats": {
         "properties": {
@@ -2215,6 +2740,53 @@
             "to": "2026-11-09T00:00:00Z"
           }
         ]
+      },
+      "ResolvedMentionedTime": {
+        "properties": {
+          "expression": {
+            "type": "string",
+            "title": "Expression"
+          },
+          "offset_seconds": {
+            "type": "number",
+            "title": "Offset Seconds"
+          },
+          "uncertainty_seconds": {
+            "type": "number",
+            "title": "Uncertainty Seconds"
+          },
+          "anchor": {
+            "type": "string",
+            "title": "Anchor"
+          },
+          "estimated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Estimated At"
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window Start"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expression",
+          "offset_seconds",
+          "uncertainty_seconds",
+          "anchor",
+          "estimated_at",
+          "window_start",
+          "window_end"
+        ],
+        "title": "ResolvedMentionedTime",
+        "description": "상대 표현을 녹음 시각에서 되돌린 추정 시각. 없는 녹음은 null."
       }
     },
     "securitySchemes": {
@@ -2245,6 +2817,14 @@
     {
       "name": "recordings",
       "description": "녹음 업로드와 파이프라인"
+    },
+    {
+      "name": "drives",
+      "description": "운행 회차 시작과 종료"
+    },
+    {
+      "name": "reviews",
+      "description": "녹음 검토 저장"
     },
     {
       "name": "issues",
