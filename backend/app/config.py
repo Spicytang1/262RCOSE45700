@@ -33,10 +33,10 @@ class Settings(BaseSettings):
     seed_operator1_password: str = ""
     seed_operator2_password: str = ""
     seed_operator3_password: str = ""
-    seed_admin_username: str = "admin"
-    seed_operator1_username: str = "operator1"
-    seed_operator2_username: str = "operator2"
-    seed_operator3_username: str = "operator3"
+    seed_admin_username: str = "1000"
+    seed_operator1_username: str = "1001"
+    seed_operator2_username: str = "1002"
+    seed_operator3_username: str = "1003"
 
     # Claude, GPT, Jev, 게이트웨이 STT 가 같은 키를 쓴다.
     # 기본 주소는 고려대 FactChat. 공개 factchat-cloud 호스트가 아니다.

@@ -23,6 +23,7 @@ from app.config import Settings
 from app.models import User
 from app.models.base import utcnow
 from app.schemas.auth import TokenResponse, UserPublic
+from app.services.employee_number import is_employee_number
 
 router = APIRouter()
 
@@ -42,8 +43,10 @@ def _unauthorized(settings: Settings) -> JSONResponse:
     return response
 
 
-def _authenticate(db: Session, username: str, password: str) -> User | None:
-    user = db.scalar(select(User).where(User.username == username))
+def _authenticate(db: Session, employee_number: str, password: str) -> User | None:
+    user = None
+    if is_employee_number(employee_number):
+        user = db.scalar(select(User).where(User.employee_number == employee_number))
     password_hash = None if user is None else user.password_hash
     if not verify_password(password, password_hash) or user is None or not user.is_active:
         return None
@@ -55,7 +58,7 @@ def _authenticate(db: Session, username: str, password: str) -> User | None:
     response_model=TokenResponse,
     response_model_exclude_none=True,
     summary="로그인",
-    description="form 인코딩(username, password)으로 로그인합니다. 성공하면 access token 과 refresh 쿠키를 발급합니다.",
+    description="form 인코딩으로 로그인합니다. username 칸에는 회사 식별 번호만 넣고, 이름으로는 로그인되지 않습니다.",
     responses={
         401: {
             "description": LOGIN_FAILED,

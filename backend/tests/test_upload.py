@@ -2,11 +2,19 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import OPERATOR_PASSWORD, auth_header, build_test_settings, login, upload, wav_bytes
+from tests.conftest import (
+    OPERATOR_NUMBER,
+    OPERATOR_PASSWORD,
+    auth_header,
+    build_test_settings,
+    login,
+    upload,
+    wav_bytes,
+)
 
 
 def _token(client: TestClient) -> str:
-    return login(client, "operator1", OPERATOR_PASSWORD).json()["access_token"]
+    return login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD).json()["access_token"]
 
 
 def _stored_files(app) -> list[Path]:

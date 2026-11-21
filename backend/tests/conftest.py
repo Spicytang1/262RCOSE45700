@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session
 ADMIN_PASSWORD = "admin-pass-123"
 OPERATOR_PASSWORD = "operator-pass-123"
 OTHER_PASSWORD = "operator-pass-456"
+ADMIN_NUMBER = "1000"
+OPERATOR_NUMBER = "1001"
+OTHER_NUMBER = "1002"
 
 
 def build_test_settings(tmp_path) -> Settings:
@@ -53,11 +56,11 @@ def db(app) -> Session:
 
 @pytest.fixture
 def accounts(db: Session) -> dict[str, uuid.UUID]:
-    admin = add_user(db, username="admin", password=ADMIN_PASSWORD, display_name="관리자", role="admin")
+    admin = add_user(db, username=ADMIN_NUMBER, password=ADMIN_PASSWORD, display_name="관리자", role="admin")
     operator = add_user(
-        db, username="operator1", password=OPERATOR_PASSWORD, display_name="오퍼레이터1", role="operator"
+        db, username=OPERATOR_NUMBER, password=OPERATOR_PASSWORD, display_name="오퍼레이터1", role="operator"
     )
-    other = add_user(db, username="operator2", password=OTHER_PASSWORD, display_name="오퍼레이터2", role="operator")
+    other = add_user(db, username=OTHER_NUMBER, password=OTHER_PASSWORD, display_name="오퍼레이터2", role="operator")
     db.commit()
     return {"admin": admin.id, "operator": operator.id, "other": other.id}
 
@@ -109,6 +112,8 @@ def wav_bytes() -> bytes:
 
 
 def upload(client: TestClient, token: str, **form):
+    form.setdefault("latitude", "37.5")
+    form.setdefault("longitude", "127.0")
     return client.post(
         "/api/recordings",
         files={"audio": ("sample.wav", wav_bytes(), "audio/wav")},

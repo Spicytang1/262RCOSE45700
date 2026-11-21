@@ -3,7 +3,17 @@ import uuid
 from app.models import Recording
 from fastapi.testclient import TestClient
 
-from tests.conftest import ADMIN_PASSWORD, OPERATOR_PASSWORD, OTHER_PASSWORD, auth_header, login, upload
+from tests.conftest import (
+    ADMIN_NUMBER,
+    ADMIN_PASSWORD,
+    OPERATOR_NUMBER,
+    OPERATOR_PASSWORD,
+    OTHER_NUMBER,
+    OTHER_PASSWORD,
+    auth_header,
+    login,
+    upload,
+)
 
 
 def _token(client: TestClient, username: str, password: str) -> str:
@@ -11,7 +21,7 @@ def _token(client: TestClient, username: str, password: str) -> str:
 
 
 def test_drive_start_stays_on_the_open_session_until_end(client: TestClient) -> None:
-    token = _token(client, "operator1", OPERATOR_PASSWORD)
+    token = _token(client, OPERATOR_NUMBER, OPERATOR_PASSWORD)
     headers = auth_header(token)
     first = client.post("/api/drives", headers=headers)
     second = client.post("/api/drives", headers=headers)
@@ -31,9 +41,9 @@ def test_drive_start_stays_on_the_open_session_until_end(client: TestClient) -> 
 
 
 def test_drive_is_hidden_from_another_operator_and_visible_to_admin(client: TestClient) -> None:
-    owner = _token(client, "operator1", OPERATOR_PASSWORD)
-    other = _token(client, "operator2", OTHER_PASSWORD)
-    admin = _token(client, "admin", ADMIN_PASSWORD)
+    owner = _token(client, OPERATOR_NUMBER, OPERATOR_PASSWORD)
+    other = _token(client, OTHER_NUMBER, OTHER_PASSWORD)
+    admin = _token(client, ADMIN_NUMBER, ADMIN_PASSWORD)
     started = client.post("/api/drives", headers=auth_header(owner))
     drive_id = started.json()["id"]
 
@@ -46,8 +56,8 @@ def test_drive_is_hidden_from_another_operator_and_visible_to_admin(client: Test
 
 
 def test_upload_attaches_only_an_open_drive(client: TestClient, db) -> None:
-    token = _token(client, "operator1", OPERATOR_PASSWORD)
-    other = _token(client, "operator2", OTHER_PASSWORD)
+    token = _token(client, OPERATOR_NUMBER, OPERATOR_PASSWORD)
+    other = _token(client, OTHER_NUMBER, OTHER_PASSWORD)
     started = client.post("/api/drives", headers=auth_header(token))
     drive_id = started.json()["id"]
 
@@ -67,8 +77,8 @@ def test_upload_attaches_only_an_open_drive(client: TestClient, db) -> None:
 
 
 def test_review_save_keeps_audio_and_blocks_other_operator(client: TestClient, db) -> None:
-    token = _token(client, "operator1", OPERATOR_PASSWORD)
-    other = _token(client, "operator2", OTHER_PASSWORD)
+    token = _token(client, OPERATOR_NUMBER, OPERATOR_PASSWORD)
+    other = _token(client, OTHER_NUMBER, OTHER_PASSWORD)
     uploaded = upload(client, token)
     recording_id = uploaded.json()["recording_id"]
     recording = db.get(Recording, uuid.UUID(recording_id))

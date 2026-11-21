@@ -35,7 +35,7 @@ def _count_between(session: Session, start: datetime, end: datetime) -> int:
     stmt = (
         select(func.count(Issue.id))
         .join(Recording, Recording.id == Issue.recording_id)
-        .where(Recording.recorded_at >= start, Recording.recorded_at < end)
+        .where(Issue.deleted_at.is_(None), Recording.recorded_at >= start, Recording.recorded_at < end)
     )
     return int(session.scalar(stmt) or 0)
 
@@ -44,7 +44,7 @@ def _grouped(session: Session, expression: object, start: datetime, end: datetim
     stmt = (
         select(expression, func.count(Issue.id))
         .join(Recording, Recording.id == Issue.recording_id)
-        .where(Recording.recorded_at >= start, Recording.recorded_at < end)
+        .where(Issue.deleted_at.is_(None), Recording.recorded_at >= start, Recording.recorded_at < end)
         .group_by(expression)
     )
     counts: dict[str, int] = {}

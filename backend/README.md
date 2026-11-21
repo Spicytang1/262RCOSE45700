@@ -99,7 +99,7 @@ HTTP (app/api)
 파일 저장 → STT → 용어 사전 치환 → 사실 추출 → 분류 → 근거·신뢰도 검증 → issue(draft)
 ```
 
-오퍼레이터가 `PATCH /api/issues/{id}` 로 확인하면 `final_extraction` 과 `issue_edits` 에 사람 수정이 남고 상태가 `confirmed` 가 됩니다. AI가 처음 채운 `ai_extraction` 은 덮어쓰지 않습니다.
+오퍼레이터가 `PATCH /api/issues/{id}` 로 확인하면 `final_extraction` 과 `issue_edits` 에 사람 수정이 남고 상태가 `confirmed` 가 됩니다. AI가 처음 채운 `ai_extraction` 은 덮어쓰지 않습니다. `DELETE /api/issues/{id}` 는 `deleted_at` 만 기록하는 소프트 삭제입니다. 행과 원본 음성 파일은 남고, 목록·상세·요약에서는 빠집니다.
 
 ### 디렉터리
 
@@ -190,7 +190,7 @@ backend/
 | `occurred_on` | 발생일자. 녹음 시각 `recorded_at` 과 다릅니다. 요청에 있을 때만 저장합니다. |
 | `autonomy_version` | 자율주행 버전 |
 | `map_version` | 맵 버전 |
-| `latitude`, `longitude` | 이슈에 사람이 넣은 위경도 |
+| `latitude`, `longitude` | 장소 좌표. 녹음 업로드에 둘 다 필요하며 녹음과 이슈에 남습니다. |
 | `content` | 세이프티 매니저가 다듬는 이슈 내용 |
 
 보기는 임시안입니다. 1주차 멘토링 후 `v1.yaml` 만 고치면 됩니다.
@@ -269,7 +269,7 @@ uv run python -m scripts.stt_smoke path/to/clip.webm
 
 ## 인증
 
-1. `POST /api/auth/login` 에 form(`username`, `password`)을 보냅니다.
+1. `POST /api/auth/login` 에 form을 보냅니다. `username` 칸은 회사 식별 번호(숫자 4–12자리)만 받습니다. 이름으로는 로그인되지 않습니다.
 2. 응답 JSON 의 access token 을 `Authorization: Bearer` 로 보냅니다.
 3. refresh token 은 `Path=/api/auth` HttpOnly 쿠키입니다. 만료되면 `POST /api/auth/refresh` 한 번으로 회전합니다.
 4. `POST /api/auth/logout` 은 access token 또는 refresh 쿠키 중 하나만 있어도 현재 세션을 끊습니다. 이미 끊긴 뒤에도 204 입니다.
@@ -281,7 +281,7 @@ uv run python -m scripts.stt_smoke path/to/clip.webm
 
 ```bash
 SEED_OPERATOR1_PASSWORD='...' uv run python -m scripts.create_user \
-  --username operator4 --display-name 오퍼레이터4 --role operator \
+  --username 1004 --display-name 오퍼레이터4 --role operator \
   --password-env SEED_OPERATOR1_PASSWORD
 ```
 

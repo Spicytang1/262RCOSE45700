@@ -59,7 +59,9 @@ def to_issue_out(issue: Issue) -> IssueOut:
 
 def get_visible_issue(db: Session, issue_id: uuid.UUID, user: User) -> Issue | None:
     issue = db.scalar(
-        select(Issue).options(joinedload(Issue.recording).joinedload(Recording.transcript)).where(Issue.id == issue_id)
+        select(Issue)
+        .options(joinedload(Issue.recording).joinedload(Recording.transcript))
+        .where(Issue.id == issue_id, Issue.deleted_at.is_(None))
     )
     if issue is None or issue.recording is None:
         return None
@@ -81,6 +83,7 @@ def list_visible_issues(
         select(Issue)
         .join(Recording, Recording.id == Issue.recording_id)
         .options(joinedload(Issue.recording).joinedload(Recording.transcript))
+        .where(Issue.deleted_at.is_(None))
         .order_by(Recording.recorded_at.desc())
     )
     if user.role != "admin":
@@ -179,6 +182,14 @@ def apply_issue_update(db: Session, issue: Issue, user: User, payload: IssueUpda
         issue.confirmed_at = utcnow()
         issue.confirmed_by = user.id
     issue.final_extraction = current.model_dump(mode="json")
+    db.add(issue)
+    db.commit()
+    db.refresh(issue)
+    return issue
+
+
+def soft_delete_issue(db: Session, issue: Issue) -> Issue:
+    issue.deleted_at = utcnow()
     db.add(issue)
     db.commit()
     db.refresh(issue)

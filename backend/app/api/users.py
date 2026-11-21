@@ -10,7 +10,7 @@ from app.api.errors import RESP_401, RESP_403
 from app.auth.deps import get_db, require_role
 from app.models import User
 from app.schemas.auth import UserCreate, UserPublic, UserUpdate
-from app.services.users import DuplicateUsernameError, add_user, update_user
+from app.services.users import DuplicateUsernameError, InvalidEmployeeNumberError, add_user, update_user
 
 router = APIRouter()
 
@@ -21,7 +21,12 @@ router = APIRouter()
     status_code=201,
     summary="사용자 생성",
     description="관리자가 계정을 만듭니다. 셀프 가입은 없습니다.",
-    responses={**RESP_401, **RESP_403, 409: {"description": "이미 있는 아이디"}},
+    responses={
+        **RESP_401,
+        **RESP_403,
+        409: {"description": "이미 있는 식별 번호"},
+        422: {"description": "식별 번호 형식"},
+    },
 )
 def create_user(
     payload: UserCreate,
@@ -36,8 +41,10 @@ def create_user(
             display_name=payload.display_name,
             role=payload.role,
         )
+    except InvalidEmployeeNumberError as exc:
+        raise HTTPException(status_code=422, detail="회사 식별 번호는 숫자 4자리에서 12자리입니다.") from exc
     except DuplicateUsernameError as exc:
-        raise HTTPException(status_code=409, detail="이미 사용 중인 아이디입니다.") from exc
+        raise HTTPException(status_code=409, detail="이미 사용 중인 식별 번호입니다.") from exc
     db.commit()
     db.refresh(user)
     return user

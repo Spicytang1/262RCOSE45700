@@ -193,6 +193,8 @@ def _run(
         recorded_at=when,
         user_id=user_id,
         drive_session_id=drive_session_id,
+        latitude=latitude,
+        longitude=longitude,
     )
     db.add(recording)
     db.flush()

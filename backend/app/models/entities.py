@@ -14,6 +14,7 @@ class User(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    employee_number: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -76,6 +77,8 @@ class Recording(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = uuid_pk()
     audio_path: Mapped[str] = mapped_column(Text, nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
     drive_session_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("drive_sessions.id"), nullable=True
@@ -142,6 +145,7 @@ class Issue(Base, TimestampMixin):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     recording: Mapped[Recording] = relationship(back_populates="issue")
     edits: Mapped[list[IssueEdit]] = relationship(back_populates="issue")

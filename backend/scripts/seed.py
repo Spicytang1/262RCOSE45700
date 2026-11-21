@@ -66,7 +66,15 @@ def main() -> None:
             storage.mkdir(parents=True, exist_ok=True)
             audio_path = storage / "seed-demo.wav"
             audio_path.write_bytes(_silent_wav())
-            run_pipeline(db, settings, user_id=operators[0].id, audio_path=audio_path, recorded_at=utcnow())
+            run_pipeline(
+                db,
+                settings,
+                user_id=operators[0].id,
+                audio_path=audio_path,
+                recorded_at=utcnow(),
+                latitude=37.5665,
+                longitude=126.9780,
+            )
         db.commit()
     finally:
         db.close()

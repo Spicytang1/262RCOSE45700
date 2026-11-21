@@ -8,18 +8,26 @@ from app.auth.sessions import revoke_all_sessions
 from app.models import User
 from app.models.base import utcnow
 from app.schemas.auth import UserUpdate
+from app.services.employee_number import is_employee_number
 
 
 class DuplicateUsernameError(Exception):
     pass
 
 
+class InvalidEmployeeNumberError(Exception):
+    pass
+
+
 def add_user(db: Session, *, username: str, password: str, display_name: str, role: str) -> User:
-    existing = db.scalar(select(User).where(User.username == username))
+    if not is_employee_number(username):
+        raise InvalidEmployeeNumberError(username)
+    existing = db.scalar(select(User).where(User.employee_number == username))
     if existing is not None:
         raise DuplicateUsernameError(username)
     user = User(
         username=username,
+        employee_number=username,
         password_hash=hash_password(password),
         display_name=display_name,
         role=role,

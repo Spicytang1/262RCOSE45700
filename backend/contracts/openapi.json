@@ -12,7 +12,7 @@
           "auth"
         ],
         "summary": "로그인",
-        "description": "form 인코딩(username, password)으로 로그인합니다. 성공하면 access token 과 refresh 쿠키를 발급합니다.",
+        "description": "form 인코딩으로 로그인합니다. username 칸에는 회사 식별 번호만 넣고, 이름으로는 로그인되지 않습니다.",
         "operationId": "login_api_auth_login_post",
         "requestBody": {
           "content": {
@@ -36,11 +36,11 @@
             }
           },
           "401": {
-            "description": "아이디 또는 비밀번호가 올바르지 않습니다",
+            "description": "식별 번호 또는 비밀번호가 올바르지 않습니다",
             "content": {
               "application/json": {
                 "example": {
-                  "detail": "아이디 또는 비밀번호가 올바르지 않습니다"
+                  "detail": "식별 번호 또는 비밀번호가 올바르지 않습니다"
                 }
               }
             }
@@ -271,17 +271,10 @@
             }
           },
           "409": {
-            "description": "이미 있는 아이디"
+            "description": "이미 있는 식별 번호"
           },
           "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
+            "description": "식별 번호 형식"
           }
         },
         "security": [
@@ -1050,6 +1043,66 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "이슈 삭제",
+        "description": "이슈를 소프트 삭제합니다. 행과 원본 음성 파일은 남고, 목록·상세·요약에서 빠집니다.",
+        "operationId": "delete_issue_api_issues__issue_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "이슈를 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "이슈를 찾을 수 없습니다."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/issues/{issue_id}/audio": {
@@ -1301,28 +1354,14 @@
             "description": "맵 버전"
           },
           "latitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "number",
             "title": "Latitude",
-            "description": "위도"
+            "description": "장소 위도"
           },
           "longitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "number",
             "title": "Longitude",
-            "description": "경도"
+            "description": "장소 경도"
           },
           "drive_session_id": {
             "anyOf": [
@@ -1340,7 +1379,9 @@
         },
         "type": "object",
         "required": [
-          "audio"
+          "audio",
+          "latitude",
+          "longitude"
         ],
         "title": "Body_create_recording_api_recordings_post"
       },
@@ -2263,6 +2304,53 @@
           }
         ]
       },
+      "ResolvedMentionedTime": {
+        "properties": {
+          "expression": {
+            "type": "string",
+            "title": "Expression"
+          },
+          "offset_seconds": {
+            "type": "number",
+            "title": "Offset Seconds"
+          },
+          "uncertainty_seconds": {
+            "type": "number",
+            "title": "Uncertainty Seconds"
+          },
+          "anchor": {
+            "type": "string",
+            "title": "Anchor"
+          },
+          "estimated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Estimated At"
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window Start"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expression",
+          "offset_seconds",
+          "uncertainty_seconds",
+          "anchor",
+          "estimated_at",
+          "window_start",
+          "window_end"
+        ],
+        "title": "ResolvedMentionedTime",
+        "description": "상대 표현을 녹음 시각에서 되돌린 추정 시각. 없는 녹음은 null."
+      },
       "ReviewOut": {
         "properties": {
           "title": {
@@ -2498,9 +2586,10 @@
             "token_type": "bearer",
             "user": {
               "display_name": "오퍼레이터1",
+              "employee_number": "1001",
               "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
               "role": "operator",
-              "username": "operator1"
+              "username": "1001"
             }
           }
         ]
@@ -2541,9 +2630,10 @@
         "properties": {
           "username": {
             "type": "string",
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Username"
+            "maxLength": 12,
+            "minLength": 4,
+            "title": "Username",
+            "description": "회사 식별 번호"
           },
           "password": {
             "type": "string",
@@ -2586,6 +2676,10 @@
             "type": "string",
             "title": "Username"
           },
+          "employee_number": {
+            "type": "string",
+            "title": "Employee Number"
+          },
           "display_name": {
             "type": "string",
             "title": "Display Name"
@@ -2603,6 +2697,7 @@
         "required": [
           "id",
           "username",
+          "employee_number",
           "display_name",
           "role"
         ],
@@ -2740,53 +2835,6 @@
             "to": "2026-11-09T00:00:00Z"
           }
         ]
-      },
-      "ResolvedMentionedTime": {
-        "properties": {
-          "expression": {
-            "type": "string",
-            "title": "Expression"
-          },
-          "offset_seconds": {
-            "type": "number",
-            "title": "Offset Seconds"
-          },
-          "uncertainty_seconds": {
-            "type": "number",
-            "title": "Uncertainty Seconds"
-          },
-          "anchor": {
-            "type": "string",
-            "title": "Anchor"
-          },
-          "estimated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Estimated At"
-          },
-          "window_start": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Window Start"
-          },
-          "window_end": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Window End"
-          }
-        },
-        "type": "object",
-        "required": [
-          "expression",
-          "offset_seconds",
-          "uncertainty_seconds",
-          "anchor",
-          "estimated_at",
-          "window_start",
-          "window_end"
-        ],
-        "title": "ResolvedMentionedTime",
-        "description": "상대 표현을 녹음 시각에서 되돌린 추정 시각. 없는 녹음은 null."
       }
     },
     "securitySchemes": {

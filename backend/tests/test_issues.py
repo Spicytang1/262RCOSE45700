@@ -1,17 +1,29 @@
 import json
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 from app.models import Issue, IssueEdit, Recording
 from app.models.base import utcnow
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from tests.conftest import ADMIN_PASSWORD, OPERATOR_PASSWORD, OTHER_PASSWORD, auth_header, login, upload
+from tests.conftest import (
+    ADMIN_NUMBER,
+    ADMIN_PASSWORD,
+    OPERATOR_NUMBER,
+    OPERATOR_PASSWORD,
+    OTHER_NUMBER,
+    OTHER_PASSWORD,
+    auth_header,
+    login,
+    upload,
+    wav_bytes,
+)
 
 
 def test_mock_pipeline_upload_and_owner_comes_from_auth(client: TestClient, accounts, db) -> None:
-    logged = login(client, "operator1", OPERATOR_PASSWORD)
+    logged = login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD)
     token = logged.json()["access_token"]
     response = upload(client, token, operator_id=str(accounts["admin"]))
     assert response.status_code == 200, response.text
@@ -38,7 +50,7 @@ def test_mock_pipeline_upload_and_owner_comes_from_auth(client: TestClient, acco
 
 
 def test_patch_keeps_ai_value_and_editor(client: TestClient, accounts, db) -> None:
-    token = login(client, "operator1", OPERATOR_PASSWORD).json()["access_token"]
+    token = login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD).json()["access_token"]
     created = upload(client, token)
     issue_id = created.json()["issue_id"]
     patched = client.patch(
@@ -59,7 +71,7 @@ def test_patch_keeps_ai_value_and_editor(client: TestClient, accounts, db) -> No
 
 
 def test_patch_guide_choice_and_ticket_fields(client: TestClient, db) -> None:
-    token = login(client, "operator1", OPERATOR_PASSWORD).json()["access_token"]
+    token = login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD).json()["access_token"]
     created = upload(
         client,
         token,
@@ -101,9 +113,9 @@ def test_patch_guide_choice_and_ticket_fields(client: TestClient, db) -> None:
 
 
 def test_permissions_hide_other_issues_and_admin_routes(client: TestClient, accounts) -> None:
-    operator = login(client, "operator1", OPERATOR_PASSWORD).json()["access_token"]
-    other = login(client, "operator2", OTHER_PASSWORD).json()["access_token"]
-    admin = login(client, "admin", ADMIN_PASSWORD).json()["access_token"]
+    operator = login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD).json()["access_token"]
+    other = login(client, OTHER_NUMBER, OTHER_PASSWORD).json()["access_token"]
+    admin = login(client, ADMIN_NUMBER, ADMIN_PASSWORD).json()["access_token"]
     created = upload(client, operator)
     issue_id = created.json()["issue_id"]
 
@@ -136,7 +148,7 @@ def test_permissions_hide_other_issues_and_admin_routes(client: TestClient, acco
 
 
 def test_weekly_summary_matches_sql(client: TestClient, db) -> None:
-    admin = login(client, "admin", ADMIN_PASSWORD).json()["access_token"]
+    admin = login(client, ADMIN_NUMBER, ADMIN_PASSWORD).json()["access_token"]
     first = upload(client, admin)
     second = upload(client, admin)
     end = utcnow() + timedelta(minutes=5)
@@ -169,3 +181,47 @@ def test_weekly_summary_matches_sql(client: TestClient, db) -> None:
     assert stats["delta"] == current - previous
     assert str(stats["count"]) in response.json()["narrative"]
     assert first.json()["issue_id"]
+
+
+def test_upload_stores_original_audio_and_coordinates(client: TestClient, db) -> None:
+    token = login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD).json()["access_token"]
+    created = upload(client, token)
+    assert created.status_code == 200, created.text
+    body = created.json()
+    recording = db.get(Recording, uuid.UUID(body["recording_id"]))
+    issue = db.get(Issue, uuid.UUID(body["issue_id"]))
+    assert recording is not None and issue is not None
+    assert recording.latitude == 37.5
+    assert recording.longitude == 127.0
+    assert issue.latitude == 37.5
+    assert issue.longitude == 127.0
+    assert Path(recording.audio_path).read_bytes() == wav_bytes()
+
+
+def test_upload_without_coordinates_is_rejected(client: TestClient) -> None:
+    token = login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD).json()["access_token"]
+    response = client.post(
+        "/api/recordings",
+        files={"audio": ("sample.wav", wav_bytes(), "audio/wav")},
+        headers=auth_header(token),
+    )
+    assert response.status_code == 422
+
+
+def test_issue_soft_delete_hides_issue_and_keeps_audio(client: TestClient, db) -> None:
+    token = login(client, OPERATOR_NUMBER, OPERATOR_PASSWORD).json()["access_token"]
+    created = upload(client, token)
+    body = created.json()
+    issue_id = body["issue_id"]
+    recording = db.get(Recording, uuid.UUID(body["recording_id"]))
+    assert recording is not None
+    audio_path = Path(recording.audio_path)
+    deleted = client.delete(f"/api/issues/{issue_id}", headers=auth_header(token))
+    assert deleted.status_code == 204
+    assert client.get(f"/api/issues/{issue_id}", headers=auth_header(token)).status_code == 404
+    listed = client.get("/api/issues", headers=auth_header(token))
+    assert issue_id not in {item["id"] for item in listed.json()}
+    issue = db.get(Issue, uuid.UUID(issue_id))
+    assert issue is not None and issue.deleted_at is not None
+    assert audio_path.is_file()
+    assert client.delete(f"/api/issues/{issue_id}", headers=auth_header(token)).status_code == 404

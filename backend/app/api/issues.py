@@ -14,7 +14,13 @@ from app.auth.deps import get_current_user, get_db
 from app.domain.taxonomy.loader import event_type_keys
 from app.models import User
 from app.schemas.issues import IssueOut, IssueStatus, IssueUpdate
-from app.services.issues import apply_issue_update, get_visible_issue, list_visible_issues, to_issue_out
+from app.services.issues import (
+    apply_issue_update,
+    get_visible_issue,
+    list_visible_issues,
+    soft_delete_issue,
+    to_issue_out,
+)
 
 router = APIRouter()
 
@@ -81,6 +87,21 @@ def patch_issue(
     if visible is None:
         raise HTTPException(status_code=404, detail=ISSUE_NOT_FOUND)
     return to_issue_out(visible)
+
+
+@router.delete(
+    "/{issue_id}",
+    status_code=204,
+    summary="이슈 삭제",
+    description="이슈를 소프트 삭제합니다. 행과 원본 음성 파일은 남고, 목록·상세·요약에서 빠집니다.",
+    responses={**RESP_401, **RESP_404},
+)
+def delete_issue(
+    issue_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    soft_delete_issue(db, _require_issue(db, issue_id, user))
 
 
 @router.get(
