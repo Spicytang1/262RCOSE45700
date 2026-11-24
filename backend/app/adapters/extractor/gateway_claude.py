@@ -16,6 +16,7 @@ from app.adapters.extractor.base import Extraction, ExtractorAdapter, SummarySta
 from app.adapters.gateway.client import GatewayClient
 from app.adapters.gateway.errors import GatewayError
 from app.services.glossary import load_glossary
+from app.services.speaker_turns import has_speaker_labels, strip_speaker_tag
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,17 @@ EXTRACTION_SCHEMA: dict[str, object] = {
 SYSTEM_PROMPT = """너는 자율주행 시험 차량 안전 감독관 발화에서 사실만 뽑는다.
 전사에 없는 원인, 장소, 시각을 만들지 마라. 모르면 null 이다.
 cause_evidence, location_evidence, mentioned_time_evidence 는 전사에 그대로 있는 연속 구절만 쓴다. 없으면 null.
+값은 그 구절 안에서만 짧게 정리한다. 도로 유형, 직전 동작, 대상, 반응은 뽑지 마라.
+표준 용어가 있으면 그 표기를 쓴다: {terms}
+JSON 객체만 반환한다."""
+
+MULTI_SPEAKER_SYSTEM_PROMPT = """너는 자율주행 시험 차량 안전 감독관 발화에서 사실만 뽑는다.
+전사는 여러 화자([화자1], [화자2] 등)가 번갈아 말한 내용이다.
+주행 이슈를 직접 겪고 1인칭으로 신고하는 운전자의 발화만 보고 하나의 상황으로 합쳐 사실을 뽑아라.
+동승자의 잡담·놀람·반응이나 내비게이션 안내, 라디오 방송처럼 신고가 아닌 발화는 무시하라.
+전사에 없는 원인, 장소, 시각을 만들지 마라. 모르면 null 이다.
+cause_evidence, location_evidence, mentioned_time_evidence 는 전사에 그대로 있는 연속 구절만 쓴다.
+[화자1] 같은 화자 표시는 넣지 마라. 없으면 null.
 값은 그 구절 안에서만 짧게 정리한다. 도로 유형, 직전 동작, 대상, 반응은 뽑지 마라.
 표준 용어가 있으면 그 표기를 쓴다: {terms}
 JSON 객체만 반환한다."""
@@ -145,8 +157,9 @@ def _chat_payload(
 
 def _extraction_messages(transcript: str) -> list[dict[str, str]]:
     terms = ", ".join(load_glossary().terms)
+    prompt = MULTI_SPEAKER_SYSTEM_PROMPT if has_speaker_labels(transcript) else SYSTEM_PROMPT
     return [
-        {"role": "system", "content": SYSTEM_PROMPT.format(terms=terms)},
+        {"role": "system", "content": prompt.format(terms=terms)},
         {"role": "user", "content": transcript},
     ]
 
@@ -204,7 +217,7 @@ def _parse_json_object(raw: str) -> dict[str, object]:
 
 def _ground(value: str | None, evidence: str | None, transcript: str) -> TextFact:
     cleaned = value.strip() if isinstance(value, str) else ""
-    quote = evidence.strip() if isinstance(evidence, str) else ""
+    quote = strip_speaker_tag(evidence) if isinstance(evidence, str) else ""
     if not quote or quote not in transcript:
         return TextFact()
     return TextFact(value=cleaned or None, evidence=quote)

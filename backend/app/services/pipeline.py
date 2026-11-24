@@ -22,8 +22,9 @@ from app.models import Issue, Recording, Transcript
 from app.models.base import utcnow
 from app.schemas.common import Classified, Evidenced, IssueExtraction
 from app.services.cancel_intent import check_cancel_intent, move_to_trash
-from app.services.glossary import correct_text, load_glossary
+from app.services.glossary import load_glossary
 from app.services.mentioned_time import resolve_mentioned_time
+from app.services.speaker_turns import SpeakerPrep, prepare_speaker_transcript, select_driver_text
 from app.services.state_text import build_state_text
 from app.services.verify import apply_confidence_gate, apply_stt_confidence, verify_evidence
 
@@ -104,15 +105,17 @@ def _run(
     stt = get_stt_adapter(settings)
     hints = glossary.terms if stt.capabilities.supports_hints else []
     transcript = stt.transcribe(audio_path, hints)
-    corrected = correct_text(transcript.text, glossary)
-    cancel = check_cancel_intent(settings, corrected)
+    prep = prepare_speaker_transcript(transcript, glossary)
+    corrected = prep.corrected_text
+    cancel = check_cancel_intent(settings, prep.llm_text)
     step_errors: dict[str, str] = {}
+    driver_label: str | None = None
     if cancel.trash:
         # 취소 요청 녹음은 신고 내용을 뽑지 않는다.
         extracted = Extraction(cause=TextFact(), location=TextFact(), mentioned_time=TextFact())
         classified = ClassificationResult(answers=[])
     else:
-        extracted, classified = _extract_and_classify(settings, taxonomy, corrected, step_errors)
+        extracted, classified, driver_label = _extract_and_classify(settings, taxonomy, prep, step_errors)
     words = [word.model_copy() for word in transcript.words]
 
     cause = verify_evidence(_as_evidenced(extracted.cause.value, extracted.cause.evidence), corrected)
@@ -210,7 +213,16 @@ def _run(
         content=corrected,
     )
     trashed = move_to_trash(issue) if cancel.trash else False
-    issue.pipeline_meta = {**meta, "cancel_intent": cancel.meta(settings, trashed=trashed)}
+    extra_meta: dict[str, object] = {"cancel_intent": cancel.meta(settings, trashed=trashed)}
+    if prep.is_multi_speaker:
+        extra_meta["speakers"] = {
+            "count": prep.speaker_count,
+            "driver": driver_label,
+            "turns": [
+                {"speaker": turn.label, "text": turn.text, "start": turn.start, "end": turn.end} for turn in prep.turns
+            ],
+        }
+    issue.pipeline_meta = {**meta, **extra_meta}
     db.add(issue)
     db.commit()
     db.refresh(issue)
@@ -220,19 +232,23 @@ def _run(
 def _extract_and_classify(
     settings: Settings,
     taxonomy: Taxonomy,
-    corrected: str,
+    prep: SpeakerPrep,
     step_errors: dict[str, str],
-) -> tuple[Extraction, ClassificationResult]:
+) -> tuple[Extraction, ClassificationResult, str | None]:
     try:
-        extracted = get_extractor(settings).extract(corrected)
+        extracted = get_extractor(settings).extract(prep.llm_text)
     except (GatewayError, ExtractionFailed) as exc:
         step_errors["extraction"] = str(exc)[:500]
         extracted = Extraction(cause=TextFact(), location=TextFact(), mentioned_time=TextFact())
-        return extracted, ClassificationResult(answers=[])
-    state_text = build_state_text(corrected, extracted.cause.value, extracted.location.value)
+        return extracted, ClassificationResult(answers=[]), None
+    driver_text, driver_label = select_driver_text(
+        prep,
+        [extracted.cause.evidence, extracted.location.evidence, extracted.mentioned_time.evidence],
+    )
+    state_text = build_state_text(driver_text, extracted.cause.value, extracted.location.value)
     try:
         classified = get_classifier(settings).classify(state_text, build_questions(taxonomy))
     except (GatewayError, ClassificationFailed) as exc:
         step_errors["classification"] = str(exc)[:500]
         classified = ClassificationResult(answers=[])
-    return extracted, classified
+    return extracted, classified, driver_label

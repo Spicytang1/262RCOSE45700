@@ -124,6 +124,7 @@ class WordToken(BaseModel):
     start: float
     end: float
     confidence: float | None = None
+    speaker: str | None = None
 
 
 class ErrorBody(BaseModel):

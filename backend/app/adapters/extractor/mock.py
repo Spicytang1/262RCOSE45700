@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from app.adapters.extractor.base import Extraction, ExtractorAdapter, TextFact, narrative_from_stats
+from app.services.speaker_turns import has_speaker_labels, parse_labelled_turns, pick_driver_label
 
 CAUSE_RULES: list[tuple[str, str]] = [
     ("컷인", "컷인"),
@@ -32,6 +33,10 @@ def evidence_sentence(text: str, needle: str) -> str | None:
 
 class MockExtractor(ExtractorAdapter):
     def extract(self, transcript_text: str) -> Extraction:
+        if has_speaker_labels(transcript_text):
+            turns = parse_labelled_turns(transcript_text)
+            driver = pick_driver_label(turns)
+            transcript_text = "\n".join(text for label, text in turns if label == driver)
         cause = TextFact()
         for needle, value in CAUSE_RULES:
             if needle in transcript_text:
