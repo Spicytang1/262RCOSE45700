@@ -79,6 +79,7 @@ uv run python -m scripts.stt_smoke C:\path\to\clip.wav --model stt-async-v6
 | `EXTRACTOR_PROVIDER` | `mock`, `gateway_claude` |
 | `CLASSIFIER_PROVIDER` | `mock`, `gateway_jev` |
 | `CLS_CONF_HIGH`, `CLS_CONF_LOW`, `STT_CONF_MIN` | 임시 임계값. tune 데이터로 보정 후 확정 |
+| `CANCEL_INTENT_ENABLED`, `CANCEL_CONF_HIGH`, `CANCEL_CONF_LOW` | 녹음 취소 의도. Jev 가 본 cancel 확률이 HIGH 이상이면 휴지통, LOW 이상이면 검토 필요. 기본 켜짐, 0.85, 0.5 |
 | `CORS_ORIGINS` | 쉼표로 구분한 명시 origin. `*` 는 금지입니다. |
 
 ## 구조

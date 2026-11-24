@@ -50,6 +50,7 @@ class IssueExtraction(BaseModel):
     target_type: Classified[str] = Field(default_factory=empty_classified)
     ego_reaction: Classified[str] = Field(default_factory=empty_classified)
     mentioned_time_resolved: ResolvedMentionedTime | None = None
+    cancel_intent: Classified[str] = Field(default_factory=empty_classified)
 
     model_config = ConfigDict(
         json_schema_extra={
