@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     stt_poll_timeout_seconds: float = 300
     stt_max_audio_mb: int = 25
     ffmpeg_bin: str = "ffmpeg"
+    stt_denoise: Literal["off", "ffmpeg_afftdn", "deepfilternet"] = "off"
+    stt_denoise_bin: str = "deepFilter"
     extractor_provider: Literal["mock", "gateway_claude"] = "mock"
     classifier_provider: Literal["mock", "gateway_jev"] = "mock"
 

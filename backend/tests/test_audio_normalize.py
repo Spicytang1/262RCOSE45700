@@ -106,3 +106,59 @@ def test_undecodable_bytes_raise(tmp_path: Path) -> None:
     source.write_bytes(b"this is not audio")
     with pytest.raises(AudioNormalizeError, match="ffmpeg 변환에 실패"):
         normalize_for_stt(source, max_bytes=25 * 1024 * 1024, work_dir=tmp_path)
+
+
+def test_ffmpeg_afftdn_denoise_produces_16k_mono_wav(tmp_path: Path) -> None:
+    source = tmp_path / "in.wav"
+    write_pcm(source, rate=8000, seconds=0.4, channels=1)
+    result = normalize_for_stt(source, max_bytes=25 * 1024 * 1024, denoise="ffmpeg_afftdn", work_dir=tmp_path)
+    try:
+        assert result.content_type == "audio/wav"
+        assert_16k_mono_wav(result.path)
+    finally:
+        result.cleanup()
+
+
+def test_deepfilternet_runs_bin_and_resamples_to_16k(tmp_path: Path) -> None:
+    source = tmp_path / "in.wav"
+    write_pcm(source, rate=16000, seconds=0.4, channels=1)
+    args_log = tmp_path / "args.txt"
+    fake_bin = tmp_path / "fake_deepfilter.py"
+    fake_bin.write_text(
+        """#!/usr/bin/env python3
+import shutil, sys
+from pathlib import Path
+out_dir = Path(sys.argv[sys.argv.index("-o") + 1])
+src = Path(sys.argv[-1])
+shutil.copyfile(src, out_dir / f"{src.stem}_DeepFilterNet3.wav")
+""",
+        encoding="utf-8",
+    )
+    fake_bin.chmod(0o755)
+    del args_log
+    result = normalize_for_stt(
+        source,
+        max_bytes=25 * 1024 * 1024,
+        denoise="deepfilternet",
+        denoise_bin=str(fake_bin),
+        work_dir=tmp_path,
+    )
+    try:
+        assert result.content_type == "audio/wav"
+        assert_16k_mono_wav(result.path)
+    finally:
+        result.cleanup()
+
+
+def test_missing_deepfilternet_bin_raises(tmp_path: Path) -> None:
+    source = tmp_path / "in.wav"
+    write_pcm(source, rate=16000, seconds=0.2)
+    with pytest.raises(AudioNormalizeError, match="DeepFilterNet"):
+        normalize_for_stt(
+            source,
+            max_bytes=25 * 1024 * 1024,
+            denoise="deepfilternet",
+            denoise_bin="deepfilter-not-installed",
+            work_dir=tmp_path,
+        )
+    assert list(tmp_path.glob("stt-*")) == []

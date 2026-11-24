@@ -308,3 +308,18 @@ def test_smoke_skips_without_key(
     assert main([]) == 0
     assert main(["--text", "직진하다가 컷인"]) == 0
     assert "건너뜁니다" in capsys.readouterr().out
+
+
+def test_factory_forwards_denoise_settings() -> None:
+    gateway = get_stt_adapter(
+        Settings(
+            _env_file=None,
+            stt_provider="gateway",
+            gateway_api_key="k",
+            stt_denoise="ffmpeg_afftdn",
+            stt_denoise_bin="/usr/local/bin/deepFilter",
+        )
+    )
+    assert isinstance(gateway, GatewaySTT)
+    assert gateway._denoise == "ffmpeg_afftdn"
+    assert gateway._denoise_bin == "/usr/local/bin/deepFilter"

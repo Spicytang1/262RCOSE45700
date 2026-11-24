@@ -76,6 +76,7 @@ uv run python -m scripts.stt_smoke C:\path\to\clip.wav --model stt-async-v6
 | `STT_POLL_INTERVAL_SECONDS`, `STT_POLL_TIMEOUT_SECONDS` | 비동기 STT 폴링. 기본 2초, 최대 300초. |
 | `STT_MAX_AUDIO_MB` | 게이트웨이 본문 한도. 기본 25. wav 가 넘으면 mp3 로 줄입니다. |
 | `FFMPEG_BIN` | 변환에 쓸 ffmpeg. 기본 `ffmpeg`. |
+| `STT_DENOISE`, `STT_DENOISE_BIN` | STT 앞단 잡음 제거(`off`, `ffmpeg_afftdn`, `deepfilternet`). 기본 `off`. |
 | `EXTRACTOR_PROVIDER` | `mock`, `gateway_claude` |
 | `CLASSIFIER_PROVIDER` | `mock`, `gateway_jev` |
 | `CLS_CONF_HIGH`, `CLS_CONF_LOW`, `STT_CONF_MIN` | 임시 임계값. tune 데이터로 보정 후 확정 |
@@ -339,6 +340,25 @@ uv run python -m eval.hallucination --split tune
 ```
 
 `test` 분할은 최종 평가 때만 `--split test` 로 읽습니다.
+
+### 잡음 제거 비교 (STT 앞단)
+
+`stt-async-v5` 호출 전에 잡음 제거를 끼웠을 때 CER·WER 과 용어 인식률이 좋아지는지 확인했습니다.
+
+| 조건 | 표본 수 | CER | WER | 용어 재현(보정 후) |
+|---|---:|---:|---:|---:|
+| 원본 (`off`) | 40 | 0.0345 | 0.1455 | 0.6500 |
+| DeepFilterNet3 (`deepfilternet`) | 40 | 0.0375 | 0.1609 | 0.5500 |
+| 원본 (`off`, 부분집합 s01–s10) | 10 | 0.0501 | 0.1502 | 0.3333 |
+| DeepFilterNet3 (부분집합 s01–s10) | 10 | 0.0510 | 0.1536 | 0.0000 |
+| ffmpeg `afftdn` (`highpass+afftdn`, 부분집합 s01–s10) | 10 | 0.0496 | 0.1593 | 0.0000 |
+| 합성 차량 소음 10 dB 원본 (`off`) | 6 | 0.0374 | 0.1637 | 0.6667 |
+| 합성 차량 소음 10 dB + DeepFilterNet3 | 6 | 0.0452 | 0.1765 | 0.6667 |
+| 합성 차량 소음 5 dB 원본 (`off`) | 6 | 0.0503 | 0.2007 | 0.3333 |
+| 합성 차량 소음 5 dB + DeepFilterNet3 | 6 | 0.0412 | 0.1950 | 0.3333 |
+| 합성 차량 소음 5 dB + ffmpeg `afftdn` | 6 | 0.0454 | 0.2007 | 0.3333 |
+
+조용한 원본(40개)과 10 dB 소음에서는 잡음 제거가 말소리 일부를 깎아 CER·WER 과 도메인 용어("컷인" → "커진")가 오히려 떨어졌고, 5 dB 같이 소음이 큰 조건에서만 일부 개선됐습니다. 기본값은 `STT_DENOISE=off` 로 두고 필요할 때만 켜는 옵션으로 유지합니다.
 
 ## 아직 정하지 않은 것
 

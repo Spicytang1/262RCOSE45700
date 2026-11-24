@@ -18,7 +18,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from app.adapters.audio import NormalizedAudio, normalize_for_stt
+from app.adapters.audio import DenoiseMode, NormalizedAudio, normalize_for_stt
 from app.adapters.gateway.client import GatewayClient
 from app.adapters.gateway.errors import GatewayError
 from app.adapters.stt.base import STTAdapter, STTCapabilities, Transcript, TranscriptSegment
@@ -62,6 +62,8 @@ class GatewaySTT(STTAdapter):
         poll_timeout_seconds: float = 300,
         max_audio_bytes: int = 25 * 1024 * 1024,
         ffmpeg_bin: str = "ffmpeg",
+        denoise: DenoiseMode = "off",
+        denoise_bin: str = "deepFilter",
         normalizer: Callable[[Path], NormalizedAudio] | None = None,
         sleep: Callable[[float], None] | None = None,
         monotonic: Callable[[], float] | None = None,
@@ -74,6 +76,8 @@ class GatewaySTT(STTAdapter):
         self._poll_timeout = poll_timeout_seconds
         self._max_audio_bytes = max_audio_bytes
         self._ffmpeg_bin = ffmpeg_bin
+        self._denoise = denoise
+        self._denoise_bin = denoise_bin
         self._normalize = normalizer or self._normalize_file
         self._sleep = sleep or time.sleep
         self._monotonic = monotonic or time.monotonic
@@ -129,6 +133,8 @@ class GatewaySTT(STTAdapter):
             audio_path,
             max_bytes=self._max_audio_bytes,
             ffmpeg_bin=self._ffmpeg_bin,
+            denoise=self._denoise,
+            denoise_bin=self._denoise_bin,
         )
 
 
