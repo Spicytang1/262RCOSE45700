@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, MapPin, Pencil, Route, Timer, UserRound } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, MapPin, Pencil, RotateCcw, Route, Timer, Trash2, UserRound } from "lucide-react";
 import Button from "@/components/Button";
 import OptionMenu from "@/components/OptionMenu";
 import { dateText, DEMO_TRANSCRIPT, DEMO_VEHICLE_DATA, FIELD_CONFIG, focusStyle, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
@@ -24,7 +24,7 @@ type Props = {
   onSaved: () => void;
 };
 
-const STATUS_DOT: Record<RecordingStatus, string> = { new: "bg-ink-muted", reviewed: "bg-ok", flagged: "bg-warning" };
+const STATUS_DOT: Record<RecordingStatus, string> = { new: "bg-ink-muted", reviewed: "bg-ok", flagged: "bg-warning", trashed: "bg-danger" };
 
 const TITLE_SUGGESTION_KEYS: StructuredFieldKey[] = ["roadType", "targetType", "reaction"];
 
@@ -72,6 +72,27 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     closeMenu(key);
   }
 
+  async function moveToTrash() {
+    if (draft.status === "trashed") {
+      if (!window.confirm("이 녹음을 휴지통에서 복구할까요?")) return;
+      const status = draft.previousStatusBeforeTrash ?? "new";
+      change(current => ({ ...current, status, previousStatusBeforeTrash: undefined, trashedAt: undefined }));
+      await flush();
+      return;
+    }
+    if (!window.confirm("이 녹음을 휴지통에 넣을까요?")) return;
+    change(current => {
+      const previousStatus = current.status === "trashed"
+        ? current.previousStatusBeforeTrash ?? "new"
+        : current.status;
+      return { ...current, previousStatusBeforeTrash: previousStatus, status: "trashed", trashedAt: new Date().toISOString() };
+    });
+    await flush();
+  }
+
+  const isTrashed = draft.status === "trashed";
+  const previousStatus = draft.previousStatusBeforeTrash ?? "new";
+
   return <RecordingFrame tone="white">
     <div className="sticky top-0 z-10 border-b border-line bg-white/90 backdrop-blur">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center pr-2 pl-3">
@@ -88,7 +109,12 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     </div>
 
     <section className="rise border-b-2 border-line bg-surface px-5 pt-6 pb-5" style={rise(0)}>
-      <p className="text-[16px] font-bold text-ink-sub tabular-nums" data-start-trigger={recording.startTrigger ?? "none"}>{dateText(recording.recordedAt)} {timeText(recording.recordedAt)}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[16px] font-bold text-ink-sub tabular-nums" data-start-trigger={recording.startTrigger ?? "none"}>{dateText(recording.recordedAt)} {timeText(recording.recordedAt)}</p>
+        <button type="button" onClick={() => void moveToTrash()} aria-label={draft.status === "trashed" ? "휴지통에서 복구" : "휴지통에 넣기"} title={draft.status === "trashed" ? "휴지통에서 복구" : "휴지통에 넣기"} className={`flex size-11 shrink-0 items-center justify-center rounded-[10px] border border-line bg-white text-danger-ink transition-colors active:bg-surface ${focusStyle}`}>
+          {draft.status === "trashed" ? <RotateCcw className="size-5" strokeWidth={2} aria-hidden="true" /> : <Trash2 className="size-5" strokeWidth={2} aria-hidden="true" />}
+        </button>
+      </div>
       <label htmlFor="recording-title" className="sr-only">녹음 제목</label>
       <div className="mt-1 flex items-start gap-2 border-b-2 border-ink/15 pb-2 transition-colors duration-200 focus-within:border-ink">
         <input id="recording-title" name="recording-title" value={draft.title} onChange={event => { const title = event.target.value; change(current => ({ ...current, title })); }} maxLength={120} placeholder={defaultTitle} className="min-w-0 flex-1 bg-transparent text-[34px] leading-[1.2] font-extrabold tracking-tight text-ink outline-none placeholder:text-ink-sub focus-visible:outline-none" />
@@ -105,11 +131,11 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     </section>
 
     <div className="flex flex-col gap-9 px-5 pt-8 pb-8">
-      <fieldset className="rise" style={rise(60)}>
+      <fieldset className="rise" style={rise(60)} disabled={isTrashed}>
         <legend className="mb-3 text-[15px] font-extrabold">검토 상태</legend>
         <div className="grid grid-cols-3 gap-2">
-          {(Object.entries(STATUS_LABEL) as [RecordingStatus, string][]).map(([value, label]) => <label key={value} className={`relative flex min-h-12 cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border px-1 text-[14px] font-bold transition-[background-color,color,border-color] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink ${draft.status === value ? "border-ink bg-ink text-white" : "border-line text-ink-sub"}`}>
-            <input type="radio" name="review-status" value={value} checked={draft.status === value} onChange={() => change(current => ({ ...current, status: value }))} className="sr-only" />
+          {(Object.entries(STATUS_LABEL).filter(([value]) => value !== "trashed") as ["new" | "reviewed" | "flagged", string][]).map(([value, label]) => <label key={value} className={`relative flex min-h-12 items-center justify-center gap-1.5 rounded-[8px] border px-1 text-[14px] font-bold transition-[background-color,color,border-color] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${isTrashed ? "cursor-not-allowed opacity-55" : "cursor-pointer"} ${!isTrashed && previousStatus === value && draft.status === "trashed" ? "border-ink bg-ink text-white" : isTrashed && previousStatus === value ? "border-ink-sub bg-surface text-ink-sub" : !isTrashed && draft.status === value ? "border-ink bg-ink text-white" : "border-line text-ink-sub"}`}>
+            <input type="radio" name="review-status" value={value} checked={!isTrashed ? draft.status === value : previousStatus === value} disabled={isTrashed} onChange={() => change(current => ({ ...current, status: value }))} className="sr-only" />
             <span aria-hidden="true" className={`size-2 rounded-full ${STATUS_DOT[value]}`} />{label}
           </label>)}
         </div>
