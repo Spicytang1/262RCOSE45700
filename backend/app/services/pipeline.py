@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
@@ -29,6 +30,18 @@ from app.services.verify import apply_confidence_gate, apply_stt_confidence, ver
 
 class ExternalCallError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class RecordingMeta:
+    """앱이 녹음할 때 함께 보내는 부가 정보. 분석 결과에는 영향을 주지 않고 녹음 행에만 남긴다."""
+
+    duration_sec: float | None = None
+    start_trigger: str | None = None
+    location_status: str | None = None
+    location_accuracy_m: float | None = None
+    location_requested_at: datetime | None = None
+    location_captured_at: datetime | None = None
 
 
 def _as_evidenced(value: str | None, evidence: str | None) -> Evidenced[str]:
@@ -65,6 +78,8 @@ def run_pipeline(
     map_version: str | None = None,
     latitude: float | None = None,
     longitude: float | None = None,
+    drive_session_id: uuid.UUID | None = None,
+    meta: RecordingMeta | None = None,
 ) -> Issue:
     try:
         return _run(
@@ -79,6 +94,8 @@ def run_pipeline(
             map_version=map_version,
             latitude=latitude,
             longitude=longitude,
+            drive_session_id=drive_session_id,
+            meta=meta or RecordingMeta(),
         )
     except (NotImplementedError, GatewayError, AudioNormalizeError) as exc:
         raise ExternalCallError(str(exc)) from exc
@@ -97,6 +114,8 @@ def _run(
     map_version: str | None,
     latitude: float | None,
     longitude: float | None,
+    drive_session_id: uuid.UUID | None,
+    meta: RecordingMeta,
 ) -> Issue:
     taxonomy = load_taxonomy()
     glossary = load_glossary()
@@ -185,7 +204,20 @@ def _run(
         ego_reaction=guided["ego_reaction"],
         mentioned_time_resolved=resolved,
     )
-    recording = Recording(audio_path=str(audio_path), recorded_at=when, user_id=user_id)
+    recording = Recording(
+        audio_path=str(audio_path),
+        recorded_at=when,
+        user_id=user_id,
+        drive_session_id=drive_session_id,
+        latitude=latitude,
+        longitude=longitude,
+        duration_sec=meta.duration_sec,
+        start_trigger=meta.start_trigger,
+        location_status=meta.location_status,
+        location_accuracy_m=meta.location_accuracy_m,
+        location_requested_at=meta.location_requested_at,
+        location_captured_at=meta.location_captured_at,
+    )
     db.add(recording)
     db.flush()
     db.add(

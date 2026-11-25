@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "주행 이슈 리포팅 API",
-    "description": "\n오퍼레이터 음성 기반 주행 이슈 리포팅 API.\n\n녹음을 텍스트로 바꾸고, 사실과 사건 유형을 정리해 저장한 뒤 주간 요약을 만듭니다.\n\n## 인증 사용법\n1. `POST /api/auth/login` 으로 로그인합니다. Swagger 의 Authorize 도 이 주소를 사용합니다.\n2. 응답의 access token 으로 보호된 API 를 호출합니다.\n3. access token 이 만료되면 `POST /api/auth/refresh` 로 갱신합니다.\n4. `POST /api/auth/logout` 으로 현재 세션을 끝냅니다.\n",
+    "description": "\n오퍼레이터 음성 기반 주행 이슈 리포팅 API.\n\n녹음을 텍스트로 바꾸고, 사실과 사건 유형을 정리해 저장한 뒤 주간 요약을 만듭니다.\n\n## 인증 사용법\n1. `POST /api/auth/login` 에 `{\"code\": \"...\"}` 를 보냅니다.\n   로그인 코드(영문+숫자 8자 이상) 하나가 아이디와 비밀번호를 겸합니다.\n2. 응답의 `access_token` 을 `Authorization: Bearer <token>` 으로 보내 보호된 API 를 호출합니다.\n   Swagger 에서는 Authorize 에 토큰을 붙여 넣습니다.\n3. access token 이 만료되면 `POST /api/auth/refresh` 로 갱신합니다. refresh token 은 HttpOnly 쿠키라서\n   브라우저 요청에 `credentials: 'include'` 가 필요하고, 서버 CORS 허용 출처에 프런트 주소가 있어야 합니다.\n4. `POST /api/auth/logout` 으로 현재 세션을 끝냅니다.\n\n## 공통 규칙\n- 시각은 ISO 8601 이며 서버 값은 UTC 입니다. ID 는 UUID 입니다.\n- 오류는 `{\"detail\": \"화면에 보여 줘도 되는 문장\"}` 입니다. 형식 검증 실패(422)만 `detail` 이 배열입니다.\n- 오퍼레이터는 본인 데이터만, 관리자는 전체를 봅니다. 남의 데이터는 403 이 아니라 404 로 숨깁니다.\n- 이슈 분류 값(유형, 심각도, 안내 항목)은 key 로 오갑니다. 한국어 이름은 `GET /api/taxonomy` 에서 받습니다.\n\n## 이슈의 세 가지 상태\n정상 → 휴지통 → 영구 삭제.\n`POST /api/issues/{id}/trash` 로 휴지통에 넣고(`trashed_at` 이 채워짐), `POST /api/issues/{id}/restore` 로 되돌립니다.\n휴지통에 있는 이슈만 `DELETE /api/issues/{id}` 로 영구 삭제할 수 있습니다.\n이때 녹음 원본과 전사·검토도 함께 지워져 되돌릴 수 없습니다.\n휴지통 이슈는 기본 목록, 주간 요약, 검토 목록에서 빠집니다.\n",
     "version": "0.1.0"
   },
   "paths": {
@@ -12,13 +12,13 @@
           "auth"
         ],
         "summary": "로그인",
-        "description": "form 인코딩(username, password)으로 로그인합니다. 성공하면 access token 과 refresh 쿠키를 발급합니다.",
-        "operationId": "login_api_auth_login_post",
+        "description": "로그인 코드 하나로 로그인합니다. 아이디와 비밀번호를 따로 받지 않습니다. 성공하면 access token 을 본문으로, refresh token 을 HttpOnly 쿠키로 내려줍니다. 코드가 없거나 틀렸거나 비활성 계정이면 이유와 관계없이 같은 401 입니다.",
+        "operationId": "login",
         "requestBody": {
           "content": {
-            "application/x-www-form-urlencoded": {
+            "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Body_login_api_auth_login_post"
+                "$ref": "#/components/schemas/LoginRequest"
               }
             }
           },
@@ -36,21 +36,24 @@
             }
           },
           "401": {
-            "description": "아이디 또는 비밀번호가 올바르지 않습니다",
+            "description": "로그인 코드가 올바르지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
-                  "detail": "아이디 또는 비밀번호가 올바르지 않습니다"
+                  "detail": "로그인 코드가 올바르지 않습니다"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -64,8 +67,8 @@
           "auth"
         ],
         "summary": "access token 갱신",
-        "description": "refresh 쿠키를 회전하고 새 access token 을 발급합니다. 재사용이 유예 시간을 넘으면 세션을 폐기합니다.",
-        "operationId": "refresh_api_auth_refresh_post",
+        "description": "본문이 없습니다. refresh 쿠키(HttpOnly)를 회전하고 새 access token 을 발급합니다. 요청에 `credentials: 'include'` 가 필요합니다. 동시에 여러 번 보내지 말고 한 번만 보냅니다. 재사용이 유예 시간을 넘으면 세션을 폐기하고 401 을 돌려줍니다.",
+        "operationId": "refreshToken",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -81,13 +84,21 @@
             "description": "인증이 유효하지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
                 }
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "RefreshCookie": []
+          }
+        ]
       }
     },
     "/api/auth/logout": {
@@ -97,7 +108,7 @@
         ],
         "summary": "로그아웃",
         "description": "유효한 access token 또는 refresh 쿠키 중 하나만 있어도 현재 세션을 폐기합니다. 항상 204 입니다.",
-        "operationId": "logout_api_auth_logout_post",
+        "operationId": "logout",
         "responses": {
           "204": {
             "description": "Successful Response"
@@ -112,7 +123,7 @@
         ],
         "summary": "모든 세션 로그아웃",
         "description": "현재 사용자의 모든 세션을 폐기합니다.",
-        "operationId": "logout_all_api_auth_logout_all_post",
+        "operationId": "logoutAll",
         "responses": {
           "204": {
             "description": "Successful Response"
@@ -121,6 +132,9 @@
             "description": "인증이 유효하지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
                 }
@@ -130,7 +144,7 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ]
       }
@@ -142,7 +156,7 @@
         ],
         "summary": "현재 사용자",
         "description": "access token 의 세션이 유효하면 현재 사용자 정보를 반환합니다. 권한 판단에 쓰는 역할은 DB 값입니다.",
-        "operationId": "me_api_auth_me_get",
+        "operationId": "getMe",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -158,6 +172,9 @@
             "description": "인증이 유효하지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
                 }
@@ -167,7 +184,144 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "내 표시 이름 변경",
+        "description": "본인의 표시 이름만 바꿉니다. 역할과 활성 상태는 관리자만 `PATCH /api/users/{user_id}` 로 바꿉니다.",
+        "operationId": "updateMe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPublic"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/auth/me/code": {
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "내 로그인 코드 변경",
+        "description": "현재 코드를 확인한 뒤 새 코드로 바꿉니다. 성공하면 모든 세션이 폐기되므로 새 코드로 다시 로그인해야 합니다. 새 코드는 영문과 숫자를 모두 포함한 8자 이상이어야 합니다.",
+        "operationId": "changeMyCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "현재 로그인 코드가 올바르지 않습니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "현재 로그인 코드가 올바르지 않습니다."
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "이미 사용 중인 로그인 코드입니다.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "이미 사용 중인 로그인 코드입니다."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
           }
         ]
       }
@@ -178,8 +332,8 @@
           "users"
         ],
         "summary": "사용자 목록",
-        "description": "관리자가 전체 사용자를 조회합니다.",
-        "operationId": "list_users_api_users_get",
+        "description": "관리자가 전체 사용자를 조회합니다. 로그인 코드는 저장하지 않으므로 응답에 없습니다.",
+        "operationId": "listUsers",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -190,7 +344,7 @@
                     "$ref": "#/components/schemas/UserPublic"
                   },
                   "type": "array",
-                  "title": "Response List Users Api Users Get"
+                  "title": "Response Listusers"
                 }
               }
             }
@@ -199,6 +353,9 @@
             "description": "인증이 유효하지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
                 }
@@ -209,6 +366,9 @@
             "description": "권한이 없습니다.",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "권한이 없습니다."
                 }
@@ -218,7 +378,7 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ]
       },
@@ -227,8 +387,8 @@
           "users"
         ],
         "summary": "사용자 생성",
-        "description": "관리자가 계정을 만듭니다. 셀프 가입은 없습니다.",
-        "operationId": "create_user_api_users_post",
+        "description": "관리자가 계정을 만듭니다. 셀프 가입은 없습니다. 로그인 코드는 영문과 숫자를 모두 포함한 8자 이상입니다.",
+        "operationId": "createUser",
         "requestBody": {
           "content": {
             "application/json": {
@@ -254,6 +414,9 @@
             "description": "인증이 유효하지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
                 }
@@ -264,6 +427,9 @@
             "description": "권한이 없습니다.",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "권한이 없습니다."
                 }
@@ -271,14 +437,24 @@
             }
           },
           "409": {
-            "description": "이미 있는 아이디"
-          },
-          "422": {
-            "description": "Validation Error",
+            "description": "이미 사용 중인 로그인 코드입니다.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "이미 사용 중인 로그인 코드입니다."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -286,7 +462,7 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ]
       }
@@ -297,11 +473,11 @@
           "users"
         ],
         "summary": "사용자 수정",
-        "description": "이름, 역할, 활성 상태를 수정합니다. 비활성화하면 해당 사용자의 세션을 모두 폐기합니다.",
-        "operationId": "patch_user_api_users__user_id__patch",
+        "description": "이름, 역할, 활성 상태, 로그인 코드를 수정합니다. 비활성화하거나 코드를 바꾸면 해당 사용자의 세션을 모두 폐기합니다.",
+        "operationId": "updateUser",
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -343,6 +519,9 @@
               "application/json": {
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -353,19 +532,45 @@
               "application/json": {
                 "example": {
                   "detail": "권한이 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
           },
           "404": {
-            "description": "사용자를 찾을 수 없습니다."
+            "description": "사용자를 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "사용자를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "이미 사용 중인 로그인 코드입니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "이미 사용 중인 로그인 코드입니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -379,13 +584,13 @@
           "recordings"
         ],
         "summary": "녹음 업로드",
-        "description": "STT, 용어 보정, 사실 추출, 분류, 검증 후 draft 이슈를 만듭니다. 소유자는 로그인한 사용자입니다. 허용 형식은 wav, mp3, m4a, webm, ogg 이고 크기 상한은 MAX_UPLOAD_MB 입니다.",
-        "operationId": "create_recording_api_recordings_post",
+        "description": "STT, 용어 보정, 사실 추출, 분류, 검증 후 draft 이슈를 만듭니다. 소유자는 로그인한 사용자입니다. 허용 형식은 wav, mp3, m4a, webm, ogg 이고 크기 상한은 MAX_UPLOAD_MB 입니다. 위치를 얻지 못해도 녹음은 저장합니다. 이때 좌표는 보내지 말고 location_status 에 실패 사유를 보냅니다.",
+        "operationId": "uploadRecording",
         "requestBody": {
           "content": {
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/Body_create_recording_api_recordings_post"
+                "$ref": "#/components/schemas/Body_uploadRecording"
               }
             }
           },
@@ -406,6 +611,9 @@
             "description": "인증이 유효하지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
                 }
@@ -416,6 +624,9 @@
             "description": "오디오 파일이 너무 큽니다.",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "오디오 파일이 너무 큽니다."
                 }
@@ -426,8 +637,8 @@
             "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "요청 형식이 올바르지 않습니다"
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -436,6 +647,9 @@
             "description": "외부 호출에 실패했습니다. 다시 시도해 주세요.",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
                 "example": {
                   "detail": "외부 호출에 실패했습니다. 다시 시도해 주세요."
                 }
@@ -445,9 +659,368 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ]
+      }
+    },
+    "/api/drives": {
+      "get": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "운행 회차 목록",
+        "description": "오퍼레이터는 자신의 회차만, 관리자는 전체를 봅니다. 최신 시작이 먼저입니다.",
+        "operationId": "listDrives",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DriveOut"
+                  },
+                  "type": "array",
+                  "title": "Response Listdrives"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "운행 시작",
+        "description": "진행 중인 회차가 있으면 새 번호를 만들지 않고 그 회차를 돌려줍니다.",
+        "operationId": "startDrive",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/drives/{drive_id}/end": {
+      "post": {
+        "tags": [
+          "drives"
+        ],
+        "summary": "운행 종료",
+        "description": "이미 끝난 회차도 같은 종료 시각을 유지한 채 성공합니다. 다른 오퍼레이터의 회차는 404 입니다.",
+        "operationId": "endDrive",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "drive_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drive Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "운행 회차를 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "운행 회차를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reviews": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "검토 목록",
+        "description": "오퍼레이터는 자신의 녹음 검토만, 관리자는 전체를 봅니다. 휴지통에 있는 이슈의 검토는 빠집니다.",
+        "operationId": "listReviews",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewOut"
+                  },
+                  "type": "array",
+                  "title": "Response Listreviews"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reviews/{recording_id}": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "검토 조회",
+        "description": "녹음이 없거나 다른 오퍼레이터의 녹음이거나 휴지통에 있으면 404 입니다. 검토를 한 번도 저장하지 않아도 404 이므로, 404 는 '아직 저장한 검토 없음'으로 처리하면 됩니다.",
+        "operationId": "getReview",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "녹음을 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "녹음을 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "검토 저장",
+        "description": "제목, 상태, 정리 항목, 기타 입력, 메모를 통째로 저장합니다. 음성 원본과 AI 추출값은 바꾸지 않습니다.",
+        "operationId": "saveReview",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "녹음을 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "녹음을 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/issues": {
@@ -456,11 +1029,11 @@
           "issues"
         ],
         "summary": "이슈 목록",
-        "description": "오퍼레이터는 자신의 이슈만, 관리자는 전체를 봅니다.",
-        "operationId": "list_issues_api_issues_get",
+        "description": "오퍼레이터는 자신의 이슈만, 관리자는 전체를 봅니다. 기본은 정상 이슈이고, `trashed=true` 면 휴지통에 있는 이슈만 휴지통에 넣은 시각 최신순으로 줍니다.",
+        "operationId": "listIssues",
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -492,6 +1065,16 @@
             "schema": {
               "anyOf": [
                 {
+                  "enum": [
+                    "sudden_brake",
+                    "cut_in",
+                    "two_wheeler_intrusion",
+                    "illegal_parking_avoidance",
+                    "pedestrian_intrusion",
+                    "construction_zone",
+                    "signal_issue",
+                    "other"
+                  ],
                   "type": "string"
                 },
                 {
@@ -515,8 +1098,10 @@
                   "type": "null"
                 }
               ],
+              "description": "녹음 시각이 이 시각 이상",
               "title": "From"
-            }
+            },
+            "description": "녹음 시각이 이 시각 이상"
           },
           {
             "name": "to",
@@ -532,8 +1117,22 @@
                   "type": "null"
                 }
               ],
+              "description": "녹음 시각이 이 시각 미만",
               "title": "To"
-            }
+            },
+            "description": "녹음 시각이 이 시각 미만"
+          },
+          {
+            "name": "trashed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "true 면 휴지통 이슈만, false 면 정상 이슈만",
+              "default": false,
+              "title": "Trashed"
+            },
+            "description": "true 면 휴지통 이슈만, false 면 정상 이슈만"
           }
         ],
         "responses": {
@@ -546,7 +1145,7 @@
                   "items": {
                     "$ref": "#/components/schemas/IssueOut"
                   },
-                  "title": "Response List Issues Api Issues Get"
+                  "title": "Response Listissues"
                 }
               }
             }
@@ -557,6 +1156,9 @@
               "application/json": {
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -565,8 +1167,8 @@
             "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "요청 형식이 올바르지 않습니다"
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -580,11 +1182,11 @@
           "issues"
         ],
         "summary": "이슈 상세",
-        "description": "다른 오퍼레이터의 이슈는 존재하지 않는 것처럼 404 입니다.",
-        "operationId": "get_issue_api_issues__issue_id__get",
+        "description": "휴지통에 있는 이슈도 조회됩니다(`trashed_at` 이 채워져 옵니다). 다른 오퍼레이터의 이슈는 404 입니다.",
+        "operationId": "getIssue",
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -616,6 +1218,9 @@
               "application/json": {
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -626,16 +1231,19 @@
               "application/json": {
                 "example": {
                   "detail": "이슈를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -647,11 +1255,11 @@
           "issues"
         ],
         "summary": "이슈 확인·수정",
-        "description": "오퍼레이터가 값을 고치고 확정하면 final_extraction 과 issue_edits 에 수정자와 함께 남습니다.",
-        "operationId": "patch_issue_api_issues__issue_id__patch",
+        "description": "오퍼레이터가 값을 고치고 확정하면 final_extraction 과 issue_edits 에 수정자와 함께 남습니다. 휴지통에 있는 이슈는 먼저 복원해야 합니다.",
+        "operationId": "updateIssue",
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -693,6 +1301,9 @@
               "application/json": {
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -703,6 +1314,22 @@
               "application/json": {
                 "example": {
                   "detail": "이슈를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "휴지통에 있는 이슈입니다. 복원한 뒤 수정하세요.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "휴지통에 있는 이슈입니다. 복원한 뒤 수정하세요."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -711,8 +1338,87 @@
             "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "영구 삭제",
+        "description": "휴지통에 있는 이슈만 영구 삭제합니다. 이슈와 함께 녹음 원본 파일, 전사, 검토 기록이 지워지고 되돌릴 수 없습니다. 정상 상태의 이슈는 먼저 `POST /api/issues/{issue_id}/trash` 로 휴지통에 넣어야 하며, 아니면 409 입니다.",
+        "operationId": "deleteIssuePermanently",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
                 "example": {
-                  "detail": "요청 형식이 올바르지 않습니다"
+                  "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "이슈를 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "이슈를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "휴지통에 넣은 이슈만 영구 삭제할 수 있습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "휴지통에 넣은 이슈만 영구 삭제할 수 있습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -720,17 +1426,17 @@
         }
       }
     },
-    "/api/issues/{issue_id}/audio": {
-      "get": {
+    "/api/issues/{issue_id}/trash": {
+      "post": {
         "tags": [
           "issues"
         ],
-        "summary": "원본 음성",
-        "description": "오디오 바이트를 반환합니다. 프론트는 Authorization 헤더로 받은 뒤 blob URL 로 재생합니다.",
-        "operationId": "get_audio_api_issues__issue_id__audio_get",
+        "summary": "휴지통에 넣기",
+        "description": "이슈를 휴지통으로 옮깁니다. 데이터와 원본 음성은 그대로이고 기본 목록·주간 요약·검토 목록에서만 빠집니다. 이미 휴지통이면 처음 시각을 유지한 채 성공합니다.",
+        "operationId": "trashIssue",
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -750,7 +1456,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IssueOut"
+                }
               }
             }
           },
@@ -760,6 +1468,9 @@
               "application/json": {
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -770,16 +1481,200 @@
               "application/json": {
                 "example": {
                   "detail": "이슈를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{issue_id}/restore": {
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "휴지통에서 복원",
+        "description": "휴지통의 이슈를 정상 상태로 되돌립니다. 이미 정상이면 그대로 성공합니다.",
+        "operationId": "restoreIssue",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "이슈를 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "이슈를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{issue_id}/audio": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "원본 음성",
+        "description": "오디오 바이트를 반환합니다. Authorization 헤더가 필요해서 `<audio src>` 에 주소를 바로 넣을 수 없습니다. fetch 로 받아 blob URL 로 재생합니다. 휴지통의 이슈도 받을 수 있습니다.",
+        "operationId": "getIssueAudio",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "원본 음성 바이트. 형식은 업로드한 파일 그대로이고 Content-Type 으로 구분합니다.",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/webm": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/ogg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "이슈를 찾을 수 없습니다.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "이슈를 찾을 수 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 형식이 올바르지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
@@ -793,11 +1688,11 @@
           "summary"
         ],
         "summary": "주간 요약",
-        "description": "건수와 분포는 SQL 집계만 사용하고, 문장은 그 숫자를 풀어 쓴 결과입니다.",
-        "operationId": "weekly_summary_api_summary_weekly_get",
+        "description": "건수와 분포는 SQL 집계만 사용하고, 문장은 그 숫자를 풀어 쓴 결과입니다. 휴지통에 있는 이슈는 집계하지 않습니다. 관리자 전용입니다.",
+        "operationId": "getWeeklySummary",
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "BearerAuth": []
           }
         ],
         "parameters": [
@@ -839,6 +1734,9 @@
               "application/json": {
                 "example": {
                   "detail": "인증이 유효하지 않습니다"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -849,6 +1747,9 @@
               "application/json": {
                 "example": {
                   "detail": "권한이 없습니다."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -857,16 +1758,66 @@
             "description": "요청 형식이 올바르지 않습니다",
             "content": {
               "application/json": {
-                "example": {
-                  "detail": "요청 형식이 올바르지 않습니다"
+                "schema": {
+                  "$ref": "#/components/schemas/UnprocessableBody"
                 }
               }
             }
           },
           "503": {
-            "description": "요약 문장 생성에 실패했습니다."
+            "description": "요약 문장 생성에 실패했습니다. 다시 시도해 주세요.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "요약 문장 생성에 실패했습니다. 다시 시도해 주세요."
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
+      }
+    },
+    "/api/taxonomy": {
+      "get": {
+        "tags": [
+          "taxonomy"
+        ],
+        "summary": "이슈 분류 보기",
+        "description": "이슈 유형, 심각도, 네 개의 안내 항목(도로 유형·직전 동작·대상 유형·이후 반응)의 key 와 한국어 이름을 줍니다. 이슈 응답의 값은 key 로 오므로, 화면에는 이 목록의 label 로 바꿔 보여 줍니다. 앱을 시작할 때 한 번 받아 두면 됩니다. 값이 바뀌면 version 이 바뀝니다.",
+        "operationId": "getTaxonomy",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxonomyOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "인증이 유효하지 않습니다",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                },
+                "example": {
+                  "detail": "인증이 유효하지 않습니다"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
       }
     },
     "/health": {
@@ -876,18 +1827,14 @@
         ],
         "summary": "서버 상태 확인",
         "description": "프로세스 상태를 확인합니다. 인증이 필요 없습니다.",
-        "operationId": "health_health_get",
+        "operationId": "getHealth",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Health Health Get"
+                  "$ref": "#/components/schemas/HealthOut"
                 }
               }
             }
@@ -898,7 +1845,7 @@
   },
   "components": {
     "schemas": {
-      "Body_create_recording_api_recordings_post": {
+      "Body_uploadRecording": {
         "properties": {
           "audio": {
             "type": "string",
@@ -978,7 +1925,7 @@
               }
             ],
             "title": "Latitude",
-            "description": "위도"
+            "description": "녹음을 시작할 때의 기기 위도. 위치를 못 얻었으면 생략"
           },
           "longitude": {
             "anyOf": [
@@ -990,73 +1937,110 @@
               }
             ],
             "title": "Longitude",
-            "description": "경도"
+            "description": "녹음을 시작할 때의 기기 경도. 위치를 못 얻었으면 생략"
+          },
+          "drive_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Session Id",
+            "description": "진행 중인 본인 운행 회차"
+          },
+          "duration_sec": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 86400.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Sec",
+            "description": "녹음 길이(초)"
+          },
+          "start_trigger": {
+            "type": "string",
+            "enum": [
+              "button",
+              "intervention"
+            ],
+            "title": "Start Trigger",
+            "description": "녹음 시작 방식. 현재 앱은 button 만 보냅니다.",
+            "default": "button"
+          },
+          "location_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "denied",
+                  "timeout",
+                  "unavailable",
+                  "unsupported",
+                  "insecure"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Status",
+            "description": "위치 요청 결과. 좌표가 있으면 available, 없으면 실패 사유(생략하면 unavailable)"
+          },
+          "location_accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Accuracy M",
+            "description": "위치 정확도(미터)"
+          },
+          "location_requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Requested At",
+            "description": "위치를 요청한 시각"
+          },
+          "location_captured_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Captured At",
+            "description": "위치를 얻은 시각"
           }
         },
         "type": "object",
         "required": [
           "audio"
         ],
-        "title": "Body_create_recording_api_recordings_post"
-      },
-      "Body_login_api_auth_login_post": {
-        "properties": {
-          "grant_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^password$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Grant Type"
-          },
-          "username": {
-            "type": "string",
-            "title": "Username"
-          },
-          "password": {
-            "type": "string",
-            "format": "password",
-            "title": "Password"
-          },
-          "scope": {
-            "type": "string",
-            "title": "Scope",
-            "default": ""
-          },
-          "client_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Id"
-          },
-          "client_secret": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "format": "password",
-            "title": "Client Secret"
-          }
-        },
-        "type": "object",
-        "required": [
-          "username",
-          "password"
-        ],
-        "title": "Body_login_api_auth_login_post"
+        "title": "Body_uploadRecording"
       },
       "Classified_str_": {
         "properties": {
@@ -1097,6 +2081,97 @@
         },
         "type": "object",
         "title": "Classified[str]"
+      },
+      "CodeChange": {
+        "properties": {
+          "current_code": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Current Code",
+            "description": "지금 쓰는 로그인 코드"
+          },
+          "new_code": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 8,
+            "title": "New Code",
+            "description": "새 로그인 코드. 로그인 코드는 영문과 숫자를 모두 포함한 8자 이상 64자 이하입니다."
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_code",
+          "new_code"
+        ],
+        "title": "CodeChange"
+      },
+      "DriveOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Operator Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "operator_id",
+          "number",
+          "started_at",
+          "ended_at"
+        ],
+        "title": "DriveOut",
+        "description": "프론트 DriveSession. operator_id 는 로그인한 감독관이다.",
+        "examples": [
+          {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "number": 3,
+            "operator_id": "8d8a0a3e-3c1e-4b7a-9d2a-6e3c1b2a4f10",
+            "started_at": "2026-11-18T01:00:00Z"
+          }
+        ]
+      },
+      "ErrorBody": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorBody",
+        "description": "HTTPException 으로 내려가는 모든 오류의 형태. 화면에 그대로 보여 줘도 되는 한국어 문장이다."
       },
       "Evidenced_str_": {
         "properties": {
@@ -1156,18 +2231,19 @@
         "type": "object",
         "title": "Evidenced[str]"
       },
-      "HTTPValidationError": {
+      "HealthOut": {
         "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
           }
         },
         "type": "object",
-        "title": "HTTPValidationError"
+        "required": [
+          "status"
+        ],
+        "title": "HealthOut"
       },
       "IssueExtraction": {
         "properties": {
@@ -1364,15 +2440,78 @@
             "title": "Confirmed By"
           },
           "pipeline_meta": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Pipeline Meta"
+            "$ref": "#/components/schemas/PipelineMeta"
           },
           "ticket": {
             "$ref": "#/components/schemas/IssueTicket"
           },
           "transcript": {
             "$ref": "#/components/schemas/TranscriptOut"
+          },
+          "drive_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Session Id",
+            "description": "녹음이 속한 운행 회차. 회차 없는 옛 녹음은 null"
+          },
+          "duration_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Sec",
+            "description": "녹음 길이(초). 옛 녹음은 null"
+          },
+          "start_trigger": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "button",
+                  "intervention"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Trigger",
+            "description": "녹음 시작 방식. 옛 녹음은 null"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordingLocation"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "녹음 시작 때 요청한 기기 위치. 없으면 null"
+          },
+          "trashed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trashed At",
+            "description": "휴지통에 넣은 시각. null 이면 정상 상태, 값이 있으면 휴지통 상태"
           }
         },
         "type": "object",
@@ -1515,7 +2654,17 @@
           "event_type": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "sudden_brake",
+                  "cut_in",
+                  "two_wheeler_intrusion",
+                  "illegal_parking_avoidance",
+                  "pedestrian_intrusion",
+                  "construction_zone",
+                  "signal_issue",
+                  "other"
+                ]
               },
               {
                 "type": "null"
@@ -1526,7 +2675,12 @@
           "severity": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
               },
               {
                 "type": "null"
@@ -1537,7 +2691,14 @@
           "road_type": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "intersection",
+                  "curve",
+                  "merge",
+                  "straight",
+                  "crosswalk"
+                ]
               },
               {
                 "type": "null"
@@ -1548,7 +2709,15 @@
           "ego_action_before": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "going_straight",
+                  "lane_change",
+                  "left_turn",
+                  "right_turn",
+                  "u_turn",
+                  "stopped"
+                ]
               },
               {
                 "type": "null"
@@ -1559,7 +2728,14 @@
           "target_type": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "vehicle",
+                  "pedestrian",
+                  "two_wheeler",
+                  "none",
+                  "unknown"
+                ]
               },
               {
                 "type": "null"
@@ -1570,7 +2746,13 @@
           "ego_reaction": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "hard_decel",
+                  "hard_accel",
+                  "oversteer",
+                  "stop"
+                ]
               },
               {
                 "type": "null"
@@ -1666,11 +2848,13 @@
           "confirm": {
             "type": "boolean",
             "title": "Confirm",
+            "description": "true 면 이 저장으로 확정(confirmed)하고 확인자를 기록합니다.",
             "default": true
           }
         },
         "type": "object",
         "title": "IssueUpdate",
+        "description": "보낸 필드만 바뀝니다. 생략하거나 null 이면 그 값은 그대로 두며, 값을 비우는 용도로는 쓸 수 없습니다.\n\nevent_type, severity 와 네 개의 안내 항목(road_type, ego_action_before, target_type, ego_reaction)은\n`GET /api/taxonomy` 가 알려주는 key 만 받습니다.",
         "examples": [
           {
             "cause": "컷인",
@@ -1685,6 +2869,197 @@
             "vehicle_number": "12가3456"
           }
         ]
+      },
+      "LoginRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Code",
+            "description": "로그인 코드. 이 값 하나로 로그인합니다. 로그인 코드는 영문과 숫자를 모두 포함한 8자 이상 64자 이하입니다."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "LoginRequest",
+        "examples": [
+          {
+            "code": "operator1"
+          }
+        ]
+      },
+      "MeUpdate": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name"
+        ],
+        "title": "MeUpdate"
+      },
+      "PipelineMeta": {
+        "properties": {
+          "stt_provider": {
+            "type": "string",
+            "title": "Stt Provider",
+            "default": ""
+          },
+          "extractor_model": {
+            "type": "string",
+            "title": "Extractor Model",
+            "default": ""
+          },
+          "jev_model_version": {
+            "type": "string",
+            "title": "Jev Model Version",
+            "default": ""
+          },
+          "taxonomy_version": {
+            "type": "string",
+            "title": "Taxonomy Version",
+            "default": ""
+          },
+          "thresholds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineThresholds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors",
+            "description": "단계 이름(extraction, classification)별 실패 사유"
+          }
+        },
+        "type": "object",
+        "title": "PipelineMeta",
+        "description": "처리 단계 메모. 화면에 꼭 필요한 값은 아니며, errors 가 있으면 일부 단계가 실패한 것이다."
+      },
+      "PipelineThresholds": {
+        "properties": {
+          "cls_conf_high": {
+            "type": "number",
+            "title": "Cls Conf High"
+          },
+          "cls_conf_low": {
+            "type": "number",
+            "title": "Cls Conf Low"
+          },
+          "stt_conf_min": {
+            "type": "number",
+            "title": "Stt Conf Min"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cls_conf_high",
+          "cls_conf_low",
+          "stt_conf_min"
+        ],
+        "title": "PipelineThresholds"
+      },
+      "RecordingLocation": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "denied",
+              "timeout",
+              "unavailable",
+              "unsupported",
+              "insecure"
+            ],
+            "title": "Status"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "accuracy_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy M",
+            "description": "위치 정확도(미터)"
+          },
+          "requested_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested At"
+          },
+          "captured_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "RecordingLocation",
+        "description": "녹음 버튼을 누를 때 요청한 기기 위치의 결과. 사건 위치나 차량 GPS 가 아니다."
       },
       "RecordingResult": {
         "properties": {
@@ -1722,9 +3097,55 @@
             "$ref": "#/components/schemas/IssueTicket"
           },
           "pipeline_meta": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Pipeline Meta"
+            "$ref": "#/components/schemas/PipelineMeta"
+          },
+          "drive_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Session Id"
+          },
+          "duration_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Sec"
+          },
+          "start_trigger": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "button",
+                  "intervention"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Trigger"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordingLocation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1900,6 +3321,172 @@
         "title": "ResolvedMentionedTime",
         "description": "상대 표현을 녹음 시각에서 되돌린 추정 시각. 없는 녹음은 null."
       },
+      "ReviewOut": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Title",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "reviewed",
+              "flagged"
+            ],
+            "title": "Status"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Note",
+            "default": ""
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fields",
+            "description": "정리 항목. 키는 roadType, previousAction, targetType, reaction, location, event, situation, weather 만 허용"
+          },
+          "other_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Other Fields",
+            "description": "'기타'를 직접 입력 중인 항목. roadType, previousAction, targetType, reaction 중에서"
+          },
+          "other_field_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Other Field Values"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "recording_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Recording Id"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "id",
+          "recording_id",
+          "updated_at"
+        ],
+        "title": "ReviewOut",
+        "examples": [
+          {
+            "fields": {
+              "previousAction": "직진",
+              "reaction": "급감속",
+              "roadType": "직선로",
+              "targetType": "보행자"
+            },
+            "id": "11111111-1111-4111-8111-111111111111",
+            "note": "횡단보도 앞에서 확인함",
+            "other_field_values": {
+              "reaction": "수동 감속"
+            },
+            "other_fields": [
+              "reaction"
+            ],
+            "recording_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "status": "reviewed",
+            "title": "보행자 급감속",
+            "updated_at": "2026-11-18T01:05:00Z"
+          }
+        ]
+      },
+      "ReviewWrite": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Title",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "reviewed",
+              "flagged"
+            ],
+            "title": "Status"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Note",
+            "default": ""
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fields",
+            "description": "정리 항목. 키는 roadType, previousAction, targetType, reaction, location, event, situation, weather 만 허용"
+          },
+          "other_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Other Fields",
+            "description": "'기타'를 직접 입력 중인 항목. roadType, previousAction, targetType, reaction 중에서"
+          },
+          "other_field_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Other Field Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "ReviewWrite",
+        "description": "프론트 RecordingReview 전체. 자동 저장은 이 스냅샷을 통째로 보낸다.",
+        "examples": [
+          {
+            "fields": {
+              "previousAction": "직진",
+              "reaction": "급감속",
+              "roadType": "직선로",
+              "targetType": "보행자"
+            },
+            "note": "횡단보도 앞에서 확인함",
+            "other_field_values": {
+              "reaction": "수동 감속"
+            },
+            "other_fields": [
+              "reaction"
+            ],
+            "status": "reviewed",
+            "title": "보행자 급감속"
+          }
+        ]
+      },
       "SummaryStats": {
         "properties": {
           "count": {
@@ -1939,6 +3526,154 @@
         ],
         "title": "SummaryStats"
       },
+      "TaxonomyGuideGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "road_type",
+              "ego_action_before",
+              "target_type",
+              "ego_reaction"
+            ],
+            "title": "Id",
+            "description": "이슈 추출 결과와 IssueUpdate 에서 쓰는 항목 이름"
+          },
+          "review_field": {
+            "type": "string",
+            "enum": [
+              "roadType",
+              "previousAction",
+              "targetType",
+              "reaction"
+            ],
+            "title": "Review Field",
+            "description": "검토 저장(ReviewWrite.fields, other_fields)에서 같은 항목을 가리키는 이름"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "review_field",
+          "label",
+          "prompt",
+          "options"
+        ],
+        "title": "TaxonomyGuideGroup"
+      },
+      "TaxonomyOption": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "서버가 주고받는 값. IssueUpdate 와 이슈 추출 결과의 value 가 이 key 입니다."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "화면에 보여 줄 한국어 이름"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "description"
+        ],
+        "title": "TaxonomyOption"
+      },
+      "TaxonomyOut": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "event_types": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyOption"
+            },
+            "type": "array",
+            "title": "Event Types"
+          },
+          "severity_levels": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyOption"
+            },
+            "type": "array",
+            "title": "Severity Levels",
+            "description": "낮은 단계부터 높은 단계 순서"
+          },
+          "guide": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyGuideGroup"
+            },
+            "type": "array",
+            "title": "Guide"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "event_types",
+          "severity_levels",
+          "guide"
+        ],
+        "title": "TaxonomyOut",
+        "description": "이슈 분류에 쓰는 닫힌 보기 전체. 값 목록은 서버 설정(taxonomy/v1.yaml)이 기준이다.",
+        "examples": [
+          {
+            "event_types": [
+              {
+                "description": "다른 차량이 끼어든 사건",
+                "key": "cut_in",
+                "label": "끼어들기"
+              }
+            ],
+            "guide": [
+              {
+                "id": "road_type",
+                "label": "장소 또는 도로 유형",
+                "options": [
+                  {
+                    "description": "교차로 안에서 난 이슈",
+                    "key": "intersection",
+                    "label": "교차로"
+                  }
+                ],
+                "prompt": "이슈가 난 곳의 도로 모양을 고르세요.",
+                "review_field": "roadType"
+              }
+            ],
+            "severity_levels": [
+              {
+                "description": "경미한 이슈",
+                "key": "low",
+                "label": "낮음"
+              }
+            ],
+            "version": "v1"
+          }
+        ]
+      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -1953,7 +3688,8 @@
           },
           "expires_in": {
             "type": "integer",
-            "title": "Expires In"
+            "title": "Expires In",
+            "description": "access token 유효 시간(초)"
           },
           "user": {
             "$ref": "#/components/schemas/UserPublic"
@@ -1974,8 +3710,8 @@
             "user": {
               "display_name": "오퍼레이터1",
               "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-              "role": "operator",
-              "username": "operator1"
+              "is_active": true,
+              "role": "operator"
             }
           }
         ]
@@ -1988,12 +3724,12 @@
           },
           "corrected_text": {
             "type": "string",
-            "title": "Corrected Text"
+            "title": "Corrected Text",
+            "description": "용어 사전으로 보정한 전사문. 화면에는 이 값을 보여 줍니다."
           },
           "words": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/WordToken"
             },
             "type": "array",
             "title": "Words"
@@ -2012,19 +3748,38 @@
         ],
         "title": "TranscriptOut"
       },
+      "UnprocessableBody": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ValidationErrorItem"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "UnprocessableBody",
+        "description": "422 본문. 형식 검증 실패는 detail 이 배열이고, 서버가 직접 거부한 경우는 문장이다."
+      },
       "UserCreate": {
         "properties": {
-          "username": {
+          "code": {
             "type": "string",
             "maxLength": 64,
-            "minLength": 1,
-            "title": "Username"
-          },
-          "password": {
-            "type": "string",
-            "maxLength": 128,
             "minLength": 8,
-            "title": "Password"
+            "title": "Code",
+            "description": "로그인 코드. 로그인 코드는 영문과 숫자를 모두 포함한 8자 이상 64자 이하입니다."
           },
           "display_name": {
             "type": "string",
@@ -2043,12 +3798,18 @@
         },
         "type": "object",
         "required": [
-          "username",
-          "password",
+          "code",
           "display_name",
           "role"
         ],
-        "title": "UserCreate"
+        "title": "UserCreate",
+        "examples": [
+          {
+            "code": "operator6",
+            "display_name": "오퍼레이터6",
+            "role": "operator"
+          }
+        ]
       },
       "UserPublic": {
         "properties": {
@@ -2056,10 +3817,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Id"
-          },
-          "username": {
-            "type": "string",
-            "title": "Username"
           },
           "display_name": {
             "type": "string",
@@ -2072,16 +3829,28 @@
               "admin"
             ],
             "title": "Role"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
           }
         },
         "type": "object",
         "required": [
           "id",
-          "username",
           "display_name",
-          "role"
+          "role",
+          "is_active"
         ],
-        "title": "UserPublic"
+        "title": "UserPublic",
+        "examples": [
+          {
+            "display_name": "오퍼레이터1",
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "is_active": true,
+            "role": "operator"
+          }
+        ]
       },
       "UserUpdate": {
         "properties": {
@@ -2123,13 +3892,31 @@
               }
             ],
             "title": "Is Active"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "새 로그인 코드로 교체합니다. 해당 사용자의 모든 세션이 폐기됩니다. 로그인 코드는 영문과 숫자를 모두 포함한 8자 이상 64자 이하입니다."
           }
         },
         "type": "object",
         "title": "UserUpdate"
       },
-      "ValidationError": {
+      "ValidationErrorItem": {
         "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -2142,31 +3929,36 @@
               ]
             },
             "type": "array",
-            "title": "Location"
+            "title": "Loc",
+            "description": "오류 위치. 예: [\"body\", \"code\"], [\"query\", \"from\"]"
           },
           "msg": {
             "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
+            "title": "Msg"
           },
           "input": {
             "title": "Input"
           },
           "ctx": {
-            "type": "object",
-            "title": "Context"
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ctx"
           }
         },
         "type": "object",
         "required": [
+          "type",
           "loc",
-          "msg",
-          "type"
+          "msg"
         ],
-        "title": "ValidationError"
+        "title": "ValidationErrorItem"
       },
       "WeeklySummary": {
         "properties": {
@@ -2215,17 +4007,54 @@
             "to": "2026-11-09T00:00:00Z"
           }
         ]
+      },
+      "WordToken": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "start": {
+            "type": "number",
+            "title": "Start"
+          },
+          "end": {
+            "type": "number",
+            "title": "End"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "start",
+          "end"
+        ],
+        "title": "WordToken"
       }
     },
     "securitySchemes": {
-      "OAuth2PasswordBearer": {
-        "type": "oauth2",
-        "flows": {
-          "password": {
-            "scopes": {},
-            "tokenUrl": "/api/auth/login"
-          }
-        }
+      "RefreshCookie": {
+        "type": "apiKey",
+        "description": "로그인 때 서버가 심는 HttpOnly 쿠키. 요청에 `credentials: 'include'` 가 필요합니다.",
+        "in": "cookie",
+        "name": "refresh_token"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "description": "`POST /api/auth/login` 응답의 access_token 을 `Authorization: Bearer <token>` 으로 보냅니다.",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },
@@ -2247,8 +4076,20 @@
       "description": "녹음 업로드와 파이프라인"
     },
     {
+      "name": "drives",
+      "description": "운행 회차 시작과 종료"
+    },
+    {
+      "name": "reviews",
+      "description": "녹음 검토 저장"
+    },
+    {
       "name": "issues",
-      "description": "이슈 조회와 오퍼레이터 확인"
+      "description": "이슈 조회, 오퍼레이터 확인, 휴지통과 영구 삭제"
+    },
+    {
+      "name": "taxonomy",
+      "description": "이슈 분류 보기(유형·심각도·안내 항목)와 한국어 이름"
     },
     {
       "name": "summary",

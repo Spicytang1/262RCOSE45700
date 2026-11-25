@@ -29,14 +29,16 @@ class Settings(BaseSettings):
     refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     refresh_cookie_path: str = "/api/auth"
 
-    seed_admin_password: str = ""
-    seed_operator1_password: str = ""
-    seed_operator2_password: str = ""
-    seed_operator3_password: str = ""
-    seed_admin_username: str = "admin"
-    seed_operator1_username: str = "operator1"
-    seed_operator2_username: str = "operator2"
-    seed_operator3_username: str = "operator3"
+    # 로그인 코드 해시에 섞는 서버 비밀값. 바꾸면 기존 코드로 로그인할 수 없으니 처음에 정하고 유지한다.
+    login_code_pepper: str = ""
+
+    # 데모 계정의 로그인 코드. 영문과 숫자를 모두 포함한 8자 이상. 비워 둔 계정은 만들지 않는다.
+    seed_admin_code: str = ""
+    seed_operator1_code: str = ""
+    seed_operator2_code: str = ""
+    seed_operator3_code: str = ""
+    seed_operator4_code: str = ""
+    seed_operator5_code: str = ""
 
     # Claude, GPT, Jev, 게이트웨이 STT 가 같은 키를 쓴다.
     # 기본 주소는 고려대 FactChat. 공개 factchat-cloud 호스트가 아니다.

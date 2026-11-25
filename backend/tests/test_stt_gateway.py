@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from scripts.stt_smoke import main
 
-from tests.conftest import OPERATOR_PASSWORD, login, upload
+from tests.conftest import OPERATOR_CODE, login, upload
 
 BASE = "https://factchat.mindlogic-kr-api.com/v1/gateway"
 KEY = "test-key"
@@ -288,7 +288,7 @@ def test_gateway_failure_is_503_and_removes_audio(client: TestClient, app) -> No
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(GatewaySTT, "transcribe", boom)
     try:
-        token = login(client, "operator1", OPERATOR_PASSWORD).json()["access_token"]
+        token = login(client, OPERATOR_CODE).json()["access_token"]
         response = upload(client, token)
     finally:
         monkeypatch.undo()

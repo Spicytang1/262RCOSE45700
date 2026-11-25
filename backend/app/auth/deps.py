@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.api.errors import FORBIDDEN, INVALID_AUTH
@@ -14,7 +14,20 @@ from app.auth.sessions import get_session, session_is_active
 from app.config import Settings
 from app.models import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+bearer_scheme = HTTPBearer(
+    scheme_name="BearerAuth",
+    bearerFormat="JWT",
+    description="`POST /api/auth/login` 응답의 access_token 을 `Authorization: Bearer <token>` 으로 보냅니다.",
+    auto_error=False,
+)
+
+# 문서용 선언이다. 쿠키 이름은 기본값 refresh_token 이고, 브라우저가 자동으로 보낸다.
+refresh_cookie_scheme = APIKeyCookie(
+    name="refresh_token",
+    scheme_name="RefreshCookie",
+    description="로그인 때 서버가 심는 HttpOnly 쿠키. 요청에 `credentials: 'include'` 가 필요합니다.",
+    auto_error=False,
+)
 
 
 def get_settings(request: Request) -> Settings:
@@ -42,15 +55,13 @@ def issue_access_token(user: User, session_id: uuid.UUID, settings: Settings, no
 
 
 def get_current_user(
-    request: Request,
-    token: str | None = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> User:
-    del request
-    if not token:
+    if credentials is None or not credentials.credentials:
         raise HTTPException(status_code=401, detail=INVALID_AUTH)
-    payload = decode_access_token(token, settings)
+    payload = decode_access_token(credentials.credentials, settings)
     if payload is None or "sub" not in payload or "sid" not in payload:
         raise HTTPException(status_code=401, detail=INVALID_AUTH)
     try:

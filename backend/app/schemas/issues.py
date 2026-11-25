@@ -4,10 +4,49 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.taxonomy.loader import choice_keys, event_type_keys, severity_keys
-from app.schemas.common import IssueExtraction
+from app.schemas.common import IssueExtraction, WordToken
+
+# 허용값은 taxonomy/v1.yaml 에서 읽는다. 문서(OpenAPI)에 enum 으로 그대로 나간다.
+EventTypeKey = Literal[tuple(event_type_keys())]  # type: ignore[valid-type]
+SeverityKey = Literal[tuple(severity_keys())]  # type: ignore[valid-type]
+RoadTypeKey = Literal[tuple(choice_keys("road_type"))]  # type: ignore[valid-type]
+EgoActionBeforeKey = Literal[tuple(choice_keys("ego_action_before"))]  # type: ignore[valid-type]
+TargetTypeKey = Literal[tuple(choice_keys("target_type"))]  # type: ignore[valid-type]
+EgoReactionKey = Literal[tuple(choice_keys("ego_reaction"))]  # type: ignore[valid-type]
+
+LocationStatus = Literal["available", "denied", "timeout", "unavailable", "unsupported", "insecure"]
+StartTrigger = Literal["button", "intervention"]
+
+
+class RecordingLocation(BaseModel):
+    """녹음 버튼을 누를 때 요청한 기기 위치의 결과. 사건 위치나 차량 GPS 가 아니다."""
+
+    status: LocationStatus
+    latitude: float | None = None
+    longitude: float | None = None
+    accuracy_m: float | None = Field(default=None, description="위치 정확도(미터)")
+    requested_at: datetime | None = None
+    captured_at: datetime | None = None
+
+
+class PipelineThresholds(BaseModel):
+    cls_conf_high: float
+    cls_conf_low: float
+    stt_conf_min: float
+
+
+class PipelineMeta(BaseModel):
+    """처리 단계 메모. 화면에 꼭 필요한 값은 아니며, errors 가 있으면 일부 단계가 실패한 것이다."""
+
+    stt_provider: str = ""
+    extractor_model: str = ""
+    jev_model_version: str = ""
+    taxonomy_version: str = ""
+    thresholds: PipelineThresholds | None = None
+    errors: dict[str, str] | None = Field(default=None, description="단계 이름(extraction, classification)별 실패 사유")
 
 
 class IssueTicket(BaseModel):
@@ -27,8 +66,8 @@ IssueStatus = Literal["draft", "confirmed", "error"]
 
 class TranscriptOut(BaseModel):
     raw_text: str
-    corrected_text: str
-    words: list[dict]
+    corrected_text: str = Field(description="용어 사전으로 보정한 전사문. 화면에는 이 값을 보여 줍니다.")
+    words: list[WordToken]
     stt_provider: str
 
 
@@ -40,7 +79,11 @@ class RecordingResult(BaseModel):
     transcript: TranscriptOut
     extraction: IssueExtraction
     ticket: IssueTicket
-    pipeline_meta: dict
+    pipeline_meta: PipelineMeta
+    drive_session_id: uuid.UUID | None = None
+    duration_sec: float | None = None
+    start_trigger: StartTrigger | None = None
+    location: RecordingLocation | None = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -89,27 +132,36 @@ class IssueOut(BaseModel):
     final_extraction: IssueExtraction | None
     confirmed_at: datetime | None
     confirmed_by: uuid.UUID | None
-    pipeline_meta: dict
+    pipeline_meta: PipelineMeta
     ticket: IssueTicket
     transcript: TranscriptOut
-
-
-def _choice_in_taxonomy(group_id: str, value: str | None) -> str | None:
-    if value is not None and value not in choice_keys(group_id):
-        raise ValueError(f"taxonomy 에 없는 {group_id} 입니다.")
-    return value
+    drive_session_id: uuid.UUID | None = Field(
+        default=None, description="녹음이 속한 운행 회차. 회차 없는 옛 녹음은 null"
+    )
+    duration_sec: float | None = Field(default=None, description="녹음 길이(초). 옛 녹음은 null")
+    start_trigger: StartTrigger | None = Field(default=None, description="녹음 시작 방식. 옛 녹음은 null")
+    location: RecordingLocation | None = Field(default=None, description="녹음 시작 때 요청한 기기 위치. 없으면 null")
+    trashed_at: datetime | None = Field(
+        default=None, description="휴지통에 넣은 시각. null 이면 정상 상태, 값이 있으면 휴지통 상태"
+    )
 
 
 class IssueUpdate(BaseModel):
+    """보낸 필드만 바뀝니다. 생략하거나 null 이면 그 값은 그대로 두며, 값을 비우는 용도로는 쓸 수 없습니다.
+
+    event_type, severity 와 네 개의 안내 항목(road_type, ego_action_before, target_type, ego_reaction)은
+    `GET /api/taxonomy` 가 알려주는 key 만 받습니다.
+    """
+
     cause: str | None = None
     location: str | None = None
     mentioned_time: str | None = None
-    event_type: str | None = None
-    severity: str | None = None
-    road_type: str | None = None
-    ego_action_before: str | None = None
-    target_type: str | None = None
-    ego_reaction: str | None = None
+    event_type: EventTypeKey | None = None
+    severity: SeverityKey | None = None
+    road_type: RoadTypeKey | None = None
+    ego_action_before: EgoActionBeforeKey | None = None
+    target_type: TargetTypeKey | None = None
+    ego_reaction: EgoReactionKey | None = None
     vehicle_number: str | None = Field(default=None, max_length=64)
     occurred_on: date | None = None
     autonomy_version: str | None = Field(default=None, max_length=64)
@@ -117,7 +169,7 @@ class IssueUpdate(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     content: str | None = None
-    confirm: bool = True
+    confirm: bool = Field(default=True, description="true 면 이 저장으로 확정(confirmed)하고 확인자를 기록합니다.")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -137,40 +189,6 @@ class IssueUpdate(BaseModel):
             ]
         }
     )
-
-    @field_validator("event_type")
-    @classmethod
-    def event_type_in_taxonomy(cls, value: str | None) -> str | None:
-        if value is not None and value not in event_type_keys():
-            raise ValueError("taxonomy 에 없는 event_type 입니다.")
-        return value
-
-    @field_validator("severity")
-    @classmethod
-    def severity_in_taxonomy(cls, value: str | None) -> str | None:
-        if value is not None and value not in severity_keys():
-            raise ValueError("taxonomy 에 없는 severity 입니다.")
-        return value
-
-    @field_validator("road_type")
-    @classmethod
-    def road_type_in_taxonomy(cls, value: str | None) -> str | None:
-        return _choice_in_taxonomy("road_type", value)
-
-    @field_validator("ego_action_before")
-    @classmethod
-    def ego_action_before_in_taxonomy(cls, value: str | None) -> str | None:
-        return _choice_in_taxonomy("ego_action_before", value)
-
-    @field_validator("target_type")
-    @classmethod
-    def target_type_in_taxonomy(cls, value: str | None) -> str | None:
-        return _choice_in_taxonomy("target_type", value)
-
-    @field_validator("ego_reaction")
-    @classmethod
-    def ego_reaction_in_taxonomy(cls, value: str | None) -> str | None:
-        return _choice_in_taxonomy("ego_reaction", value)
 
 
 class SummaryStats(BaseModel):

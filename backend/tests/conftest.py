@@ -10,9 +10,9 @@ from app.services.users import add_user
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-ADMIN_PASSWORD = "admin-pass-123"
-OPERATOR_PASSWORD = "operator-pass-123"
-OTHER_PASSWORD = "operator-pass-456"
+ADMIN_CODE = "admin0001"
+OPERATOR_CODE = "operator1"
+OTHER_CODE = "operator2"
 
 
 def build_test_settings(tmp_path) -> Settings:
@@ -52,12 +52,10 @@ def db(app) -> Session:
 
 
 @pytest.fixture
-def accounts(db: Session) -> dict[str, uuid.UUID]:
-    admin = add_user(db, username="admin", password=ADMIN_PASSWORD, display_name="관리자", role="admin")
-    operator = add_user(
-        db, username="operator1", password=OPERATOR_PASSWORD, display_name="오퍼레이터1", role="operator"
-    )
-    other = add_user(db, username="operator2", password=OTHER_PASSWORD, display_name="오퍼레이터2", role="operator")
+def accounts(db: Session, settings: Settings) -> dict[str, uuid.UUID]:
+    admin = add_user(db, settings, code=ADMIN_CODE, display_name="관리자", role="admin")
+    operator = add_user(db, settings, code=OPERATOR_CODE, display_name="오퍼레이터1", role="operator")
+    other = add_user(db, settings, code=OTHER_CODE, display_name="오퍼레이터2", role="operator")
     db.commit()
     return {"admin": admin.id, "operator": operator.id, "other": other.id}
 
@@ -69,8 +67,8 @@ def client(app, accounts):
         yield test_client
 
 
-def login(client: TestClient, username: str, password: str):
-    response = client.post("/api/auth/login", data={"username": username, "password": password})
+def login(client: TestClient, code: str):
+    response = client.post("/api/auth/login", json={"code": code})
     assert response.status_code == 200, response.text
     return response
 
@@ -109,6 +107,8 @@ def wav_bytes() -> bytes:
 
 
 def upload(client: TestClient, token: str, **form):
+    form.setdefault("latitude", "37.5")
+    form.setdefault("longitude", "127.0")
     return client.post(
         "/api/recordings",
         files={"audio": ("sample.wav", wav_bytes(), "audio/wav")},

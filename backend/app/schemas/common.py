@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -126,4 +126,24 @@ class WordToken(BaseModel):
 
 
 class ErrorBody(BaseModel):
+    """HTTPException 으로 내려가는 모든 오류의 형태. 화면에 그대로 보여 줘도 되는 한국어 문장이다."""
+
     detail: str
+
+
+class HealthOut(BaseModel):
+    status: Literal["ok"]
+
+
+class ValidationErrorItem(BaseModel):
+    type: str
+    loc: list[str | int] = Field(description='오류 위치. 예: ["body", "code"], ["query", "from"]')
+    msg: str
+    input: Any = None
+    ctx: dict[str, Any] | None = None
+
+
+class UnprocessableBody(BaseModel):
+    """422 본문. 형식 검증 실패는 detail 이 배열이고, 서버가 직접 거부한 경우는 문장이다."""
+
+    detail: str | list[ValidationErrorItem]
