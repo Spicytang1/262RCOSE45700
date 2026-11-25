@@ -61,8 +61,9 @@ export default function Record({ onFinish, onCancel }: Props) {
   const [voiceStatus, setVoiceStatus] = useState("음성 종료 명령을 준비하고 있어요");
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
-  const { levels, quietMs } = useAudioLevels(micStream);
+  const { levels, quietMs, startingSilentMs } = useAudioLevels(micStream);
   const silenceRatio = Math.min(quietMs / SILENCE_MS, 1);
+  const isWaitingForIssue = ready && startingSilentMs >= SILENCE_MS;
 
   // useRef: 화면을 다시 그리지 않고 값을 계속 들고 있는 상자
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -219,7 +220,7 @@ export default function Record({ onFinish, onCancel }: Props) {
   }, [ready, error]);
 
   return (
-    <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-ink px-5 pt-6 pb-8 text-white">
+    <main className={`app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col px-5 pt-6 pb-8 text-white transition-colors duration-500 ${isWaitingForIssue ? "bg-[#333333]" : "bg-ink"}`}>
       <header className="flex justify-center">
         {error ? (
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3.5 py-1.5 text-[13px] font-semibold text-white/70">
@@ -248,8 +249,14 @@ export default function Record({ onFinish, onCancel }: Props) {
           </p>
         ) : (
           <>
-            <p className="text-[16px] font-semibold text-kakao" aria-live="polite">
-              {!ready ? "마이크를 준비하고 있어요" : silenceRatio > 0.25 ? `조용해서 ${Math.max(1, Math.ceil((1 - silenceRatio) * SILENCE_MS / 1000))}초 뒤에 녹음이 끝나요` : "듣고 있어요"}
+            <p className={`font-extrabold text-kakao transition-[font-size] duration-300 ${isWaitingForIssue ? "text-[24px] leading-[1.35]" : "text-[16px]"}`} aria-live="polite">
+              {!ready
+                ? "마이크를 준비하고 있어요"
+                : isWaitingForIssue
+                  ? "이슈를 말해주세요"
+                  : silenceRatio > 0.25
+                    ? `조용해서 ${Math.max(1, Math.ceil((1 - silenceRatio) * SILENCE_MS / 1000))}초 뒤에 녹음이 끝나요`
+                    : "듣고 있어요"}
             </p>
             {ready && <p className="max-w-[300px] text-center text-[13px] text-white/65" aria-live="polite">{voiceStatus}</p>}
           </>

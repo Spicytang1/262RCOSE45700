@@ -10,9 +10,10 @@ const SPEECH_LOW_HZ = 180;
 const SPEECH_HIGH_HZ = 3400;
 const SPEECH_PROBABILITY = 0.5;
 
-export default function useAudioLevels(stream: MediaStream | null): { levels: number[]; quietMs: number } {
+export default function useAudioLevels(stream: MediaStream | null): { levels: number[]; quietMs: number; startingSilentMs: number } {
   const [levels, setLevels] = useState<number[]>(EMPTY_LEVELS);
   const [quietMs, setQuietMs] = useState(0);
+  const [startingSilentMs, setStartingSilentMs] = useState(0);
 
   useEffect(() => {
     if (!stream) return;
@@ -44,6 +45,7 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
     let vad: MicVAD | null = null;
     let heard = false;
     let quiet = 0;
+    let startingSilent = 0;
 
     void import("@ricky0123/vad-web").then(({ MicVAD: Vad }) => Vad.new({
       model: "v5",
@@ -57,7 +59,12 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
         if (probabilities.isSpeech >= SPEECH_PROBABILITY) {
           heard = true;
           quiet = 0;
-        } else if (heard) {
+          startingSilent = 0;
+          setStartingSilentMs(0);
+        } else if (!heard) {
+          startingSilent += 32;
+          setStartingSilentMs(startingSilent);
+        } else {
           quiet += 32;
         }
         setQuietMs(quiet);
@@ -77,5 +84,5 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
     };
   }, [stream]);
 
-  return { levels, quietMs };
+  return { levels, quietMs, startingSilentMs };
 }
