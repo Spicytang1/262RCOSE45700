@@ -191,7 +191,9 @@ export default function App() {
       setPending(null);
       setNotice(finishReasonRef.current === "silence"
         ? "4초 동안 목소리가 들리지 않아 녹음을 마쳤어요. 녹음은 보관했어요."
-        : "녹음을 보관했어요.");
+        : finishReasonRef.current === "voice"
+          ? "음성 종료 명령을 인식해 녹음을 마쳤어요. 녹음은 보관했어요."
+          : "녹음을 보관했어요.");
       setScreen("standby");
     } catch {
       setSaveError(true);

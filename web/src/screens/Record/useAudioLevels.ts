@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { MicVAD } from "@ricky0123/vad-web";
 
 const BAR_COUNT = 40;
-export const INTERVAL_MS = 80;
+export const INTERVAL_MS = 50;
 const EMPTY_LEVELS = Array<number>(BAR_COUNT).fill(0);
 
 const FFT_SIZE = 2048;
@@ -51,7 +51,7 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
       onnxWASMBasePath: "/vad/",
       startOnLoad: false,
       getStream: async () => stream,
-      pauseStream: async () => {},
+      pauseStream: async () => { },
       resumeStream: async (resumed) => resumed,
       onFrameProcessed: (probabilities) => {
         if (probabilities.isSpeech >= SPEECH_PROBABILITY) {
@@ -66,7 +66,7 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
       if (cancelled) { await instance.destroy(); return; }
       vad = instance;
       await instance.start();
-    }).catch(() => {});
+    }).catch(() => { });
 
     return () => {
       cancelled = true;

@@ -8,7 +8,7 @@ export default function Waveform({ levels }: Props) {
       {levels.map((v, i) => (
         <span
           key={i}
-          className="h-full w-1 rounded-full bg-kakao transition-transform duration-75"
+          className={`h-full w-1 rounded-full bg-kakao ${i === levels.length - 1 ? "transition-transform duration-160 ease-out" : ""}`}
           style={{ transform: `scaleY(${Math.max(v, 0.06)})` }}
         />
       ))}
