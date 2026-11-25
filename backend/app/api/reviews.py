@@ -18,9 +18,10 @@ RESP_RECORDING_404 = {404: error_response(RECORDING_NOT_FOUND)}
 
 @router.get(
     "",
+    operation_id="listReviews",
     response_model=list[ReviewOut],
     summary="검토 목록",
-    description="오퍼레이터는 자신의 녹음 검토만, 관리자는 전체를 봅니다.",
+    description="오퍼레이터는 자신의 녹음 검토만, 관리자는 전체를 봅니다. 휴지통에 있는 이슈의 검토는 빠집니다.",
     responses={**RESP_401},
 )
 def get_reviews(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[ReviewOut]:
@@ -29,10 +30,14 @@ def get_reviews(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.get(
     "/{recording_id}",
+    operation_id="getReview",
     response_model=ReviewOut,
     summary="검토 조회",
-    description="녹음이 없거나 다른 오퍼레이터의 녹음이면 404 입니다. 검토를 한 번도 저장하지 않아도 404 입니다.",
-    responses={**RESP_401, **RESP_RECORDING_404},
+    description=(
+        "녹음이 없거나 다른 오퍼레이터의 녹음이거나 휴지통에 있으면 404 입니다. "
+        "검토를 한 번도 저장하지 않아도 404 이므로, 404 는 '아직 저장한 검토 없음'으로 처리하면 됩니다."
+    ),
+    responses={**RESP_401, **RESP_RECORDING_404, **RESP_422},
 )
 def get_recording_review(
     recording_id: uuid.UUID,
@@ -47,6 +52,7 @@ def get_recording_review(
 
 @router.put(
     "/{recording_id}",
+    operation_id="saveReview",
     response_model=ReviewOut,
     summary="검토 저장",
     description="제목, 상태, 정리 항목, 기타 입력, 메모를 통째로 저장합니다. 음성 원본과 AI 추출값은 바꾸지 않습니다.",

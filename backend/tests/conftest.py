@@ -10,12 +10,9 @@ from app.services.users import add_user
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-ADMIN_PASSWORD = "admin-pass-123"
-OPERATOR_PASSWORD = "operator-pass-123"
-OTHER_PASSWORD = "operator-pass-456"
-ADMIN_NUMBER = "1000"
-OPERATOR_NUMBER = "1001"
-OTHER_NUMBER = "1002"
+ADMIN_CODE = "admin0001"
+OPERATOR_CODE = "operator1"
+OTHER_CODE = "operator2"
 
 
 def build_test_settings(tmp_path) -> Settings:
@@ -55,12 +52,10 @@ def db(app) -> Session:
 
 
 @pytest.fixture
-def accounts(db: Session) -> dict[str, uuid.UUID]:
-    admin = add_user(db, username=ADMIN_NUMBER, password=ADMIN_PASSWORD, display_name="관리자", role="admin")
-    operator = add_user(
-        db, username=OPERATOR_NUMBER, password=OPERATOR_PASSWORD, display_name="오퍼레이터1", role="operator"
-    )
-    other = add_user(db, username=OTHER_NUMBER, password=OTHER_PASSWORD, display_name="오퍼레이터2", role="operator")
+def accounts(db: Session, settings: Settings) -> dict[str, uuid.UUID]:
+    admin = add_user(db, settings, code=ADMIN_CODE, display_name="관리자", role="admin")
+    operator = add_user(db, settings, code=OPERATOR_CODE, display_name="오퍼레이터1", role="operator")
+    other = add_user(db, settings, code=OTHER_CODE, display_name="오퍼레이터2", role="operator")
     db.commit()
     return {"admin": admin.id, "operator": operator.id, "other": other.id}
 
@@ -72,8 +67,8 @@ def client(app, accounts):
         yield test_client
 
 
-def login(client: TestClient, username: str, password: str):
-    response = client.post("/api/auth/login", data={"username": username, "password": password})
+def login(client: TestClient, code: str):
+    response = client.post("/api/auth/login", json={"code": code})
     assert response.status_code == 200, response.text
     return response
 

@@ -7,19 +7,21 @@ from app.config import get_settings
 from app.db import make_engine, make_session_factory
 from app.models import Issue, User
 from app.models.base import utcnow
+from app.services.login_code import LOGIN_CODE_RULE
 from app.services.pipeline import run_pipeline
-from app.services.users import add_user
+from app.services.users import InvalidLoginCodeError, add_user, find_user_by_code
 from sqlalchemy import func, select
 
 
-def _ensure_user(db, *, username: str, password: str, display_name: str, role: str) -> User:
-    existing = db.scalar(select(User).where(User.username == username))
+def _ensure_user(db, settings, *, code: str, display_name: str, role: str) -> User:
+    existing = find_user_by_code(db, settings, code)
     if existing is not None:
         return existing
-    if not password:
-        print(f"{username} 계정을 만들 비밀번호 환경변수가 비어 있습니다.", file=sys.stderr)
-        raise SystemExit(1)
-    return add_user(db, username=username, password=password, display_name=display_name, role=role)
+    try:
+        return add_user(db, settings, code=code, display_name=display_name, role=role)
+    except InvalidLoginCodeError:
+        print(f"{display_name} 코드가 형식에 맞지 않습니다. {LOGIN_CODE_RULE}", file=sys.stderr)
+        raise SystemExit(1) from None
 
 
 def _silent_wav() -> bytes:
@@ -42,26 +44,21 @@ def _silent_wav() -> bytes:
 
 def main() -> None:
     settings = get_settings()
+    wanted = [("관리자", "admin", settings.seed_admin_code)] + [
+        (f"오퍼레이터{index}", "operator", getattr(settings, f"seed_operator{index}_code")) for index in range(1, 6)
+    ]
+    configured = [(name, role, code) for name, role, code in wanted if code]
+    if not configured:
+        print("SEED_ADMIN_CODE, SEED_OPERATOR1_CODE ... 중 하나 이상을 채워야 합니다.", file=sys.stderr)
+        raise SystemExit(1)
     db = make_session_factory(make_engine(settings))()
     try:
-        admin = _ensure_user(
-            db,
-            username=settings.seed_admin_username,
-            password=settings.seed_admin_password,
-            display_name="관리자",
-            role="admin",
-        )
-        operators = [
-            _ensure_user(
-                db,
-                username=getattr(settings, f"seed_operator{index}_username"),
-                password=getattr(settings, f"seed_operator{index}_password"),
-                display_name=f"오퍼레이터{index}",
-                role="operator",
-            )
-            for index in (1, 2, 3)
+        users = [
+            (name, role, _ensure_user(db, settings, code=code, display_name=name, role=role))
+            for name, role, code in configured
         ]
-        if db.scalar(select(func.count()).select_from(Issue)) == 0:
+        operators = [user for _, role, user in users if role == "operator"]
+        if operators and db.scalar(select(func.count()).select_from(Issue)) == 0:
             storage = Path(settings.storage_dir)
             storage.mkdir(parents=True, exist_ok=True)
             audio_path = storage / "seed-demo.wav"
@@ -78,7 +75,7 @@ def main() -> None:
         db.commit()
     finally:
         db.close()
-    print(f"시드 완료: admin={admin.username}, operators={', '.join(user.username for user in operators)}")
+    print(f"시드 완료: {', '.join(name for name, _, _ in users)}")
 
 
 if __name__ == "__main__":

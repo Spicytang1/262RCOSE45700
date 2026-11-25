@@ -3,14 +3,22 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime
+from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import Issue, IssueEdit, Recording, User
+from app.models import Issue, IssueEdit, Recording, RecordingReview, Transcript, User
 from app.models.base import utcnow
 from app.schemas.common import IssueExtraction
-from app.schemas.issues import IssueOut, IssueTicket, IssueUpdate, TranscriptOut
+from app.schemas.issues import (
+    IssueOut,
+    IssueTicket,
+    IssueUpdate,
+    PipelineMeta,
+    RecordingLocation,
+    TranscriptOut,
+)
 
 
 def _extraction(payload: dict | None) -> IssueExtraction | None:
@@ -31,6 +39,22 @@ def field_value(issue: Issue, name: str) -> object:
     return field
 
 
+def recording_location(recording: Recording) -> RecordingLocation | None:
+    """위치 상태가 없는 옛 녹음은 좌표가 있을 때만 성공으로 본다."""
+    if recording.location_status is None:
+        if recording.latitude is None or recording.longitude is None:
+            return None
+        return RecordingLocation(status="available", latitude=recording.latitude, longitude=recording.longitude)
+    return RecordingLocation(
+        status=recording.location_status,  # type: ignore[arg-type]
+        latitude=recording.latitude,
+        longitude=recording.longitude,
+        accuracy_m=recording.location_accuracy_m,
+        requested_at=recording.location_requested_at,
+        captured_at=recording.location_captured_at,
+    )
+
+
 def to_issue_out(issue: Issue) -> IssueOut:
     recording = issue.recording
     transcript = recording.transcript
@@ -46,7 +70,7 @@ def to_issue_out(issue: Issue) -> IssueOut:
         final_extraction=_extraction(issue.final_extraction),
         confirmed_at=issue.confirmed_at,
         confirmed_by=issue.confirmed_by,
-        pipeline_meta=issue.pipeline_meta,
+        pipeline_meta=PipelineMeta.model_validate(issue.pipeline_meta),
         ticket=ticket_from_issue(issue),
         transcript=TranscriptOut(
             raw_text=transcript.raw_text,
@@ -54,14 +78,18 @@ def to_issue_out(issue: Issue) -> IssueOut:
             words=list(transcript.words),
             stt_provider=transcript.stt_provider,
         ),
+        drive_session_id=recording.drive_session_id,
+        duration_sec=recording.duration_sec,
+        start_trigger=recording.start_trigger,  # type: ignore[arg-type]
+        location=recording_location(recording),
+        trashed_at=issue.trashed_at,
     )
 
 
 def get_visible_issue(db: Session, issue_id: uuid.UUID, user: User) -> Issue | None:
+    """본인(관리자는 전체) 이슈. 휴지통에 있는 것도 돌려주므로 상태는 trashed_at 으로 확인한다."""
     issue = db.scalar(
-        select(Issue)
-        .options(joinedload(Issue.recording).joinedload(Recording.transcript))
-        .where(Issue.id == issue_id, Issue.deleted_at.is_(None))
+        select(Issue).options(joinedload(Issue.recording).joinedload(Recording.transcript)).where(Issue.id == issue_id)
     )
     if issue is None or issue.recording is None:
         return None
@@ -78,13 +106,14 @@ def list_visible_issues(
     event_type: str | None,
     start: datetime | None,
     end: datetime | None,
+    trashed: bool = False,
 ) -> list[Issue]:
     stmt = (
         select(Issue)
         .join(Recording, Recording.id == Issue.recording_id)
         .options(joinedload(Issue.recording).joinedload(Recording.transcript))
-        .where(Issue.deleted_at.is_(None))
-        .order_by(Recording.recorded_at.desc())
+        .where(Issue.trashed_at.is_not(None) if trashed else Issue.trashed_at.is_(None))
+        .order_by(Issue.trashed_at.desc() if trashed else Recording.recorded_at.desc())
     )
     if user.role != "admin":
         stmt = stmt.where(Recording.user_id == user.id)
@@ -188,9 +217,43 @@ def apply_issue_update(db: Session, issue: Issue, user: User, payload: IssueUpda
     return issue
 
 
-def soft_delete_issue(db: Session, issue: Issue) -> Issue:
-    issue.deleted_at = utcnow()
-    db.add(issue)
-    db.commit()
-    db.refresh(issue)
+class NotTrashedError(Exception):
+    pass
+
+
+def trash_issue(db: Session, issue: Issue) -> Issue:
+    """휴지통으로 옮긴다. 이미 휴지통이면 처음 시각을 유지한다."""
+    if issue.trashed_at is None:
+        issue.trashed_at = utcnow()
+        db.add(issue)
+        db.commit()
+        db.refresh(issue)
     return issue
+
+
+def restore_issue(db: Session, issue: Issue) -> Issue:
+    if issue.trashed_at is not None:
+        issue.trashed_at = None
+        db.add(issue)
+        db.commit()
+        db.refresh(issue)
+    return issue
+
+
+def purge_issue(db: Session, issue: Issue) -> None:
+    """휴지통에 있는 이슈를 녹음 원본·전사·검토와 함께 완전히 지운다. 되돌릴 수 없다."""
+    if issue.trashed_at is None:
+        raise NotTrashedError
+    recording = issue.recording
+    recording_id = recording.id
+    audio_path = Path(recording.audio_path)
+    issue_id = issue.id
+    # 외래키 순서대로 한 번에 지운다. ORM 연쇄 삭제를 쓰지 않는다.
+    db.execute(delete(IssueEdit).where(IssueEdit.issue_id == issue_id))
+    db.execute(delete(Issue).where(Issue.id == issue_id))
+    db.execute(delete(RecordingReview).where(RecordingReview.recording_id == recording_id))
+    db.execute(delete(Transcript).where(Transcript.recording_id == recording_id))
+    db.execute(delete(Recording).where(Recording.id == recording_id))
+    db.commit()
+    # DB 삭제가 확정된 뒤에만 파일을 지운다. 파일 삭제가 실패해도 DB 는 이미 정리된 상태다.
+    audio_path.unlink(missing_ok=True)

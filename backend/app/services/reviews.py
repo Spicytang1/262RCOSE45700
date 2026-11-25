@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Recording, RecordingReview, User
+from app.models import Issue, Recording, RecordingReview, User
 from app.models.base import utcnow
 from app.schemas.reviews import ReviewOut, ReviewWrite
 
@@ -30,6 +30,8 @@ def visible_recording(db: Session, recording_id: uuid.UUID, user: User) -> Recor
         return None
     if user.role != "admin" and recording.user_id != user.id:
         return None
+    if recording.issue is not None and recording.issue.trashed_at is not None:
+        return None
     return recording
 
 
@@ -40,7 +42,12 @@ def get_review(db: Session, recording_id: uuid.UUID, user: User) -> RecordingRev
 
 
 def list_reviews(db: Session, user: User) -> list[RecordingReview]:
-    stmt = select(RecordingReview).join(RecordingReview.recording)
+    stmt = (
+        select(RecordingReview)
+        .join(RecordingReview.recording)
+        .outerjoin(Issue, Issue.recording_id == Recording.id)
+        .where(Issue.trashed_at.is_(None))
+    )
     if user.role != "admin":
         stmt = stmt.where(Recording.user_id == user.id)
     return list(db.scalars(stmt.order_by(RecordingReview.updated_at.desc())))

@@ -26,8 +26,17 @@ class ReviewWrite(BaseModel):
     title: str = Field(default="", max_length=120)
     status: ReviewStatus
     note: str = Field(default="", max_length=4000)
-    fields: dict[str, str] = Field(default_factory=dict)
-    other_fields: list[str] = Field(default_factory=list)
+    fields: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "정리 항목. 키는 roadType, previousAction, targetType, reaction, "
+            "location, event, situation, weather 만 허용"
+        ),
+    )
+    other_fields: list[str] = Field(
+        default_factory=list,
+        description="'기타'를 직접 입력 중인 항목. roadType, previousAction, targetType, reaction 중에서",
+    )
     other_field_values: dict[str, str] = Field(default_factory=dict)
 
     model_config = ConfigDict(

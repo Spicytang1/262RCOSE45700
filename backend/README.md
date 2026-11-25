@@ -9,7 +9,7 @@
 ```bash
 cd backend
 cp .env.example .env
-# .env 의 JWT_SECRET 과 SEED_*_PASSWORD 를 채웁니다.
+# .env 의 JWT_SECRET, LOGIN_CODE_PEPPER, SEED_*_CODE 를 채웁니다.
 
 make up          # Docker Compose: postgres + api. 기동 시 alembic upgrade head
 make seed        # 데모 계정과 샘플 이슈. 다른 터미널에서, 또는 compose exec
@@ -47,7 +47,7 @@ uv run python -m scripts.stt_smoke C:\path\to\clip.webm
 uv run python -m scripts.stt_smoke C:\path\to\clip.wav --model stt-async-v6
 ```
 
-패키지 관리는 uv 입니다. 비밀번호 해시는 `pwdlib[argon2]` 의 `PasswordHash.recommended()` (argon2id) 입니다.
+패키지 관리는 uv 입니다. 로그인 코드는 원문을 저장하지 않고 HMAC-SHA256 값(`users.code_digest`)만 저장합니다.
 
 ## 환경변수
 
@@ -65,7 +65,8 @@ uv run python -m scripts.stt_smoke C:\path\to\clip.wav --model stt-async-v6
 | `SESSION_ABSOLUTE_DAYS` | 세션 절대 수명. 기본 30일. 넘기면 refresh 도 거절합니다. |
 | `REFRESH_REUSE_GRACE_SECONDS` | 회전 직후 중복 요청을 세션 폐기 없이 401 만 내는 시간. 기본 10초 |
 | `REFRESH_COOKIE_*` | HttpOnly 쿠키. `Secure` 를 비우면 dev 가 아닐 때 켭니다. |
-| `SEED_*_PASSWORD` | 데모 계정 비밀번호. 코드에 넣지 않습니다. |
+| `LOGIN_CODE_PEPPER` | 로그인 코드 해시에 섞는 서버 비밀값. 처음에 정하고 바꾸지 않습니다. 바꾸면 기존 코드로 로그인할 수 없습니다. |
+| `SEED_ADMIN_CODE`, `SEED_OPERATOR1_CODE` … `5` | 데모 계정의 로그인 코드(영문+숫자 8자 이상). 비워 둔 계정은 만들지 않습니다. 코드에 넣지 않습니다. |
 | `GATEWAY_BASE_URL`, `GATEWAY_API_KEY` | 서버 내부용 키 하나. 기본 주소는 고려대 FactChat. Claude, GPT, Jev, STT 가 같이 씁니다. 응답과 프론트에 넣지 않습니다. |
 | `GATEWAY_TIMEOUT_SECONDS`, `GATEWAY_MAX_RETRIES` | HTTP 타임아웃과 5xx·429 재시도. `Retry-After` 가 있으면 그 시간을 따릅니다. |
 | `EXTRACT_MODEL` | 사실 추출 `chat/completions` 모델. 기본 `claude-opus-5-5`. 비우면 `CLAUDE_MODEL`. |
@@ -99,7 +100,18 @@ HTTP (app/api)
 파일 저장 → STT → 용어 사전 치환 → 사실 추출 → 분류 → 근거·신뢰도 검증 → issue(draft)
 ```
 
-오퍼레이터가 `PATCH /api/issues/{id}` 로 확인하면 `final_extraction` 과 `issue_edits` 에 사람 수정이 남고 상태가 `confirmed` 가 됩니다. AI가 처음 채운 `ai_extraction` 은 덮어쓰지 않습니다. `DELETE /api/issues/{id}` 는 `deleted_at` 만 기록하는 소프트 삭제입니다. 행과 원본 음성 파일은 남고, 목록·상세·요약에서는 빠집니다.
+오퍼레이터가 `PATCH /api/issues/{id}` 로 확인하면 `final_extraction` 과 `issue_edits` 에 사람 수정이 남고 상태가 `confirmed` 가 됩니다. AI가 처음 채운 `ai_extraction` 은 덮어쓰지 않습니다. 
+
+이슈는 세 상태를 가집니다. 정상 → 휴지통 → 영구 삭제.
+
+| 동작 | API | 결과 |
+|---|---|---|
+| 휴지통에 넣기 | `POST /api/issues/{id}/trash` | `trashed_at` 기록. 행·음성은 그대로. 기본 목록, 주간 요약, 검토 목록에서 빠집니다. |
+| 휴지통 보기 | `GET /api/issues?trashed=true` | 휴지통 이슈만, 넣은 시각 최신순 |
+| 복원 | `POST /api/issues/{id}/restore` | `trashed_at` 을 비웁니다. |
+| 영구 삭제 | `DELETE /api/issues/{id}` | 휴지통에 있는 것만 가능(아니면 409). 이슈·수정 이력·전사·검토·녹음 행과 음성 파일을 지웁니다. 되돌릴 수 없습니다. |
+
+휴지통의 이슈는 상세·음성 조회는 되지만 수정(PATCH)은 409 입니다. 휴지통에 오래 둔 항목을 자동으로 비우는 작업은 아직 없습니다.
 
 ### 디렉터리
 
@@ -115,7 +127,7 @@ backend/
     issues.py              # 목록·수정·음성. 남의 이슈는 404
     summary.py             # 주간 요약. 관리자만
     errors.py              # 공통 에러 문구와 OpenAPI 응답
-  app/auth/                # 비밀번호, JWT, 세션, refresh 회전, 쿠키, Depends
+  app/auth/                # JWT, 세션, refresh 회전, 쿠키, Depends
   app/schemas/             # Pydantic = OpenAPI 계약. 바꾸면 프론트에 영향
   app/models/entities.py   # SQLAlchemy 테이블
   app/adapters/
@@ -148,12 +160,12 @@ backend/
 
 | 테이블 | 무엇을 남기는지 |
 |---|---|
-| `users` | 계정. 역할은 `operator` 또는 `admin`. 비밀번호는 argon2 해시만 |
+| `users` | 계정. 역할은 `operator` 또는 `admin`. 로그인 코드는 HMAC 해시(`code_digest`)만 저장 |
 | `auth_sessions` | 로그인 1회. access token 의 `sid`. 폐기되면 그 세션의 access token 도 즉시 거절 |
 | `refresh_tokens` | refresh 원문의 SHA-256. 회전 시 기존 행은 `used_at`, 새 행은 `replaced_by_id` |
-| `recordings` | 음성 파일 경로, 발화 시각, 녹음한 사용자, 연결된 운행 회차 |
+| `recordings` | 음성 파일 경로, 발화 시각, 녹음한 사용자, 연결된 운행 회차, 녹음 길이·시작 방식, 녹음 시작 때 요청한 기기 위치와 결과(`location_*`) |
 | `transcripts` | STT 원문(`raw_text`)과 용어 보정본(`corrected_text`), 단어 시각·신뢰도 |
-| `issues` | AI 결과와 사람 확인값, 상태, 파이프라인 메타, 지라에 올릴 차량 번호·발생일자·버전·위경도·이슈 내용 |
+| `issues` | AI 결과와 사람 확인값, 상태, 휴지통에 넣은 시각(`trashed_at`), 파이프라인 메타, 지라에 올릴 차량 번호·발생일자·버전·위경도·이슈 내용 |
 | `issue_edits` | 필드별 수정 전 값, 수정 후 값, 수정한 사용자 |
 | `drive_sessions` | 감독관별 운행 회차 번호, 시작·종료 시각. 진행 중 회차는 사용자마다 하나 |
 | `recording_reviews` | 녹음과 1:1 인 검토. 제목, `new`/`reviewed`/`flagged`, 정리 항목, 기타 입력, 메모. AI 추출값과 별개 |
@@ -269,27 +281,27 @@ uv run python -m scripts.stt_smoke path/to/clip.webm
 
 ## 인증
 
-1. `POST /api/auth/login` 에 form을 보냅니다. `username` 칸은 회사 식별 번호(숫자 4–12자리)만 받습니다. 이름으로는 로그인되지 않습니다.
+1. `POST /api/auth/login` 에 JSON `{"code": "operator1"}` 을 보냅니다. 영문과 숫자를 모두 포함한 8자 이상 코드 하나가 아이디와 비밀번호를 겸하며, 대소문자를 구분합니다. 없는 코드·틀린 코드·비활성 계정은 모두 같은 401 입니다.
 2. 응답 JSON 의 access token 을 `Authorization: Bearer` 로 보냅니다.
 3. refresh token 은 `Path=/api/auth` HttpOnly 쿠키입니다. 만료되면 `POST /api/auth/refresh` 한 번으로 회전합니다.
 4. `POST /api/auth/logout` 은 access token 또는 refresh 쿠키 중 하나만 있어도 현재 세션을 끊습니다. 이미 끊긴 뒤에도 204 입니다.
 5. `POST /api/auth/logout-all` 은 access token 이 필요하며 모든 세션을 끊습니다.
+6. `PATCH /api/auth/me` 는 본인 표시 이름을, `PUT /api/auth/me/code` 는 본인 코드를 바꿉니다. 코드를 바꾸면 모든 세션이 끊겨 새 코드로 다시 로그인합니다.
 
 권한은 토큰이 아니라 DB 의 `role` 로 판단합니다. 역할은 `operator`, `admin` 두 가지입니다. 오퍼레이터는 자기 이슈만 보고, 다른 사람의 이슈는 404 입니다. 주간 요약과 사용자 관리는 관리자만 가능하고, 오퍼레이터가 호출하면 403 입니다.
 
-한계: 셀프 가입, 비밀번호 재설정, 소셜 로그인, MFA, 로그인 시도 제한은 없습니다. 계정은 관리자의 `POST /api/users` 또는 `scripts/create_user.py` 로 만듭니다.
+한계: 셀프 가입, 소셜 로그인, MFA, 로그인 시도 제한은 없습니다. 코드 하나가 유일한 비밀이라서 `operator1` 같은 추측하기 쉬운 코드는 시연용으로만 쓰고, 공개 주소에서는 운영 전에 길고 무작위인 코드로 바꾸고 로그인 시도 제한을 붙입니다. 계정은 관리자의 `POST /api/users` 또는 `scripts/create_user.py` 로 만들고, 코드 교체는 `PATCH /api/users/{id}` 의 `code` 로 합니다.
 
 ```bash
-SEED_OPERATOR1_PASSWORD='...' uv run python -m scripts.create_user \
-  --username 1004 --display-name 오퍼레이터4 --role operator \
-  --password-env SEED_OPERATOR1_PASSWORD
+NEW_CODE='operator6' uv run python -m scripts.create_user \
+  --display-name 오퍼레이터6 --role operator --code-env NEW_CODE
 ```
 
 ## Swagger 로 테스트하는 방법
 
 1. 서버를 띄웁니다.
 2. http://localhost:8000/docs 를 엽니다. ReDoc 은 `/redoc` 입니다.
-3. Authorize 에 username 과 password 를 넣습니다. 로그인 요청은 form 입니다.
+3. `POST /api/auth/login` 의 Try it out 에 `{"code": "..."}` 를 보내고, 응답의 `access_token` 을 Authorize(BearerAuth)에 붙여 넣습니다.
 4. 보호된 API 를 호출합니다. 새로고침 후에도 Authorize 가 유지됩니다(`persistAuthorization`).
 5. refresh 와 logout 은 같은 origin 이라 브라우저가 `/api/auth` 쿠키를 붙입니다.
 6. refresh token 은 응답 JSON 에 없고 쿠키로만 옵니다. `http://localhost` 에서 쿠키가 안 붙으면 `APP_ENV=dev`(Secure 꺼짐)인지 확인합니다.
@@ -298,6 +310,7 @@ SEED_OPERATOR1_PASSWORD='...' uv run python -m scripts.create_user \
 
 ## 프론트 담당자
 
+0. `contracts/openapi.json` 이 기준입니다. `operationId` 는 `login`, `listIssues`, `trashIssue` 처럼 고정된 이름입니다. 이슈 분류 값의 한국어 이름은 `GET /api/taxonomy` 로 받습니다.
 1. 인증이 필요한 요청에 `credentials: 'include'` 를 넣습니다.
 2. refresh 는 동시에 여러 번 보내지 않습니다. 한 번만 보내고 나머지는 그 결과를 기다립니다.
 3. 401 이면 refresh 후 원래 요청을 한 번만 다시 보냅니다. refresh 도 실패하면 로그인 화면으로 이동합니다.

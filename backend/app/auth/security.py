@@ -4,26 +4,10 @@ import hashlib
 import secrets
 
 import jwt
-from pwdlib import PasswordHash
 
 from app.config import Settings
 
 JWT_ALGORITHM = "HS256"
-
-_password_hash = PasswordHash.recommended()
-_dummy_hash = _password_hash.hash(secrets.token_urlsafe(16))
-
-
-def hash_password(password: str) -> str:
-    return _password_hash.hash(password)
-
-
-def verify_password(password: str, password_hash: str | None) -> bool:
-    candidate = password_hash or _dummy_hash
-    matched = _password_hash.verify(password, candidate)
-    if password_hash is None:
-        return False
-    return matched
 
 
 def hash_refresh_token(raw_token: str) -> str:

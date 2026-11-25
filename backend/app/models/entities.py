@@ -13,9 +13,8 @@ class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    employee_number: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # 로그인 코드의 HMAC-SHA256 hex. 코드 원문은 저장하지 않고, 이 값으로 사용자를 찾는다.
+    code_digest: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -79,6 +78,13 @@ class Recording(Base, TimestampMixin):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 녹음 버튼을 누를 때 요청한 기기 위치의 결과. 이전 녹음에는 없다.
+    location_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    location_accuracy_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    location_captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_sec: Mapped[float | None] = mapped_column(Float, nullable=True)
+    start_trigger: Mapped[str | None] = mapped_column(String(16), nullable=True)
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id"), nullable=False)
     drive_session_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("drive_sessions.id"), nullable=True
@@ -145,7 +151,8 @@ class Issue(Base, TimestampMixin):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 휴지통에 넣은 시각. 비어 있으면 정상, 있으면 휴지통. 영구 삭제하면 행 자체가 사라진다.
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     recording: Mapped[Recording] = relationship(back_populates="issue")
     edits: Mapped[list[IssueEdit]] = relationship(back_populates="issue")
