@@ -12,8 +12,11 @@ import tempfile
 import wave
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 TARGET_SAMPLE_RATE = 16000
+DEEPFILTER_SAMPLE_RATE = 48000
+FFMPEG_DENOISE_FILTER = "highpass=f=80,afftdn=nf=-25"
 MIN_MP3_BITRATE_KBPS = 16
 MAX_MP3_BITRATE_KBPS = 64
 # multipart 프레이밍이 본문 한도에 걸리지 않도록 남기는 여유.
@@ -22,6 +25,8 @@ FFMPEG_TIMEOUT_SECONDS = 180
 
 WAV_CONTENT_TYPE = "audio/wav"
 MP3_CONTENT_TYPE = "audio/mpeg"
+
+DenoiseMode = Literal["off", "ffmpeg_afftdn", "deepfilternet"]
 
 
 class AudioNormalizeError(Exception):
@@ -44,6 +49,8 @@ def normalize_for_stt(
     *,
     max_bytes: int,
     ffmpeg_bin: str = "ffmpeg",
+    denoise: DenoiseMode = "off",
+    denoise_bin: str = "deepFilter",
     work_dir: Path | None = None,
 ) -> NormalizedAudio:
     if not source.is_file():
@@ -54,11 +61,18 @@ def normalize_for_stt(
     directory = Path(tempfile.mkdtemp(prefix="stt-", dir=work_dir))
     wav_path = directory / "audio.wav"
     try:
+        input_path = source
+        filter_args: list[str] = []
+        if denoise == "ffmpeg_afftdn":
+            filter_args = ["-af", FFMPEG_DENOISE_FILTER]
+        elif denoise == "deepfilternet":
+            input_path = _run_deepfilternet(ffmpeg_bin, denoise_bin, source, directory)
+
         _run_ffmpeg(
             ffmpeg_bin,
-            source,
+            input_path,
             wav_path,
-            ["-c:a", "pcm_s16le", "-f", "wav"],
+            [*filter_args, "-c:a", "pcm_s16le", "-f", "wav"],
         )
         if _fits(wav_path.stat().st_size, max_bytes):
             return NormalizedAudio(
@@ -71,9 +85,9 @@ def normalize_for_stt(
         mp3_path = directory / "audio.mp3"
         _run_ffmpeg(
             ffmpeg_bin,
-            source,
+            input_path,
             mp3_path,
-            ["-c:a", "libmp3lame", "-b:a", f"{bitrate}k"],
+            [*filter_args, "-c:a", "libmp3lame", "-b:a", f"{bitrate}k"],
         )
         wav_path.unlink(missing_ok=True)
         if not _fits(mp3_path.stat().st_size, max_bytes):
@@ -87,6 +101,38 @@ def normalize_for_stt(
     except AudioNormalizeError:
         shutil.rmtree(directory, ignore_errors=True)
         raise
+
+
+def _run_deepfilternet(ffmpeg_bin: str, denoise_bin: str, source: Path, directory: Path) -> Path:
+    df_in = directory / "df_in.wav"
+    df_out_dir = directory / "df_out"
+    df_out_dir.mkdir(exist_ok=True)
+    _run_ffmpeg(
+        ffmpeg_bin,
+        source,
+        df_in,
+        ["-c:a", "pcm_s16le", "-f", "wav"],
+        sample_rate=DEEPFILTER_SAMPLE_RATE,
+    )
+    try:
+        completed = subprocess.run(
+            [denoise_bin, "-o", str(df_out_dir), str(df_in)],
+            check=False,
+            capture_output=True,
+            timeout=FFMPEG_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError:
+        raise AudioNormalizeError(
+            f"DeepFilterNet 실행 파일을 찾을 수 없습니다 ({denoise_bin}). STT_DENOISE_BIN 을 확인하세요."
+        ) from None
+    except subprocess.TimeoutExpired:
+        raise AudioNormalizeError("DeepFilterNet 잡음 제거 시간이 초과되었습니다.") from None
+    candidates = sorted(df_out_dir.glob("*.wav"))
+    if completed.returncode != 0 or not candidates or candidates[0].stat().st_size == 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        tail = detail[-400:] if detail else "출력 없음"
+        raise AudioNormalizeError(f"DeepFilterNet 잡음 제거에 실패했습니다: {tail}")
+    return candidates[0]
 
 
 def _fits(size: int, max_bytes: int) -> bool:
@@ -120,7 +166,14 @@ def _mp3_bitrate_kbps(duration_seconds: float, max_bytes: int) -> int:
     return min(kbps, MAX_MP3_BITRATE_KBPS)
 
 
-def _run_ffmpeg(ffmpeg_bin: str, source: Path, destination: Path, codec_args: list[str]) -> None:
+def _run_ffmpeg(
+    ffmpeg_bin: str,
+    source: Path,
+    destination: Path,
+    codec_args: list[str],
+    *,
+    sample_rate: int = TARGET_SAMPLE_RATE,
+) -> None:
     command = [
         ffmpeg_bin,
         "-nostdin",
@@ -133,7 +186,7 @@ def _run_ffmpeg(ffmpeg_bin: str, source: Path, destination: Path, codec_args: li
         "-ac",
         "1",
         "-ar",
-        str(TARGET_SAMPLE_RATE),
+        str(sample_rate),
         *codec_args,
         str(destination),
     ]

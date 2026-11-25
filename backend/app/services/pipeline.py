@@ -17,13 +17,15 @@ from app.adapters.extractor.gateway_claude import ExtractionFailed
 from app.adapters.gateway.errors import GatewayError
 from app.adapters.stt.factory import get_stt_adapter
 from app.config import Settings
-from app.domain.taxonomy.loader import load_taxonomy
+from app.domain.taxonomy.loader import Taxonomy, load_taxonomy
 from app.domain.taxonomy.questions import build_questions
 from app.models import Issue, Recording, Transcript
 from app.models.base import utcnow
 from app.schemas.common import Classified, Evidenced, IssueExtraction
-from app.services.glossary import correct_text, load_glossary
+from app.services.cancel_intent import check_cancel_intent, move_to_trash
+from app.services.glossary import load_glossary
 from app.services.mentioned_time import resolve_mentioned_time
+from app.services.speaker_turns import SpeakerPrep, prepare_speaker_transcript, select_driver_text
 from app.services.state_text import build_state_text
 from app.services.verify import apply_confidence_gate, apply_stt_confidence, verify_evidence
 
@@ -122,22 +124,17 @@ def _run(
     stt = get_stt_adapter(settings)
     hints = glossary.terms if stt.capabilities.supports_hints else []
     transcript = stt.transcribe(audio_path, hints)
-    corrected = correct_text(transcript.text, glossary)
-    extractor = get_extractor(settings)
+    prep = prepare_speaker_transcript(transcript, glossary)
+    corrected = prep.corrected_text
+    cancel = check_cancel_intent(settings, prep.llm_text)
     step_errors: dict[str, str] = {}
-    try:
-        extracted = extractor.extract(corrected)
-    except (GatewayError, ExtractionFailed) as exc:
-        step_errors["extraction"] = str(exc)[:500]
+    driver_label: str | None = None
+    if cancel.trash:
+        # 취소 요청 녹음은 신고 내용을 뽑지 않는다.
         extracted = Extraction(cause=TextFact(), location=TextFact(), mentioned_time=TextFact())
         classified = ClassificationResult(answers=[])
     else:
-        state_text = build_state_text(corrected, extracted.cause.value, extracted.location.value)
-        try:
-            classified = get_classifier(settings).classify(state_text, build_questions(taxonomy))
-        except (GatewayError, ClassificationFailed) as exc:
-            step_errors["classification"] = str(exc)[:500]
-            classified = ClassificationResult(answers=[])
+        extracted, classified, driver_label = _extract_and_classify(settings, taxonomy, prep, step_errors)
     words = [word.model_copy() for word in transcript.words]
 
     cause = verify_evidence(_as_evidenced(extracted.cause.value, extracted.cause.evidence), corrected)
@@ -186,12 +183,14 @@ def _run(
             )
 
     when = recorded_at or utcnow()
-    resolved = resolve_mentioned_time(
-        corrected,
-        mention=mentioned.value or mentioned.evidence,
-        words=words,
-        recorded_at=when,
-    )
+    resolved = None
+    if not cancel.trash:
+        resolved = resolve_mentioned_time(
+            corrected,
+            mention=mentioned.value or mentioned.evidence,
+            words=words,
+            recorded_at=when,
+        )
     extraction = IssueExtraction(
         cause=cause,
         location=location,
@@ -203,6 +202,7 @@ def _run(
         target_type=guided["target_type"],
         ego_reaction=guided["ego_reaction"],
         mentioned_time_resolved=resolved,
+        cancel_intent=cancel.classified,
     )
     recording = Recording(
         audio_path=str(audio_path),
@@ -229,12 +229,13 @@ def _run(
             stt_provider=transcript.provider,
         )
     )
+    meta = _pipeline_meta(settings, transcript.provider, taxonomy.version, step_errors)
     issue = Issue(
         recording_id=recording.id,
         ai_extraction=extraction.model_dump(mode="json"),
         final_extraction=None,
         status="error" if step_errors else "draft",
-        pipeline_meta=_pipeline_meta(settings, transcript.provider, taxonomy.version, step_errors),
+        pipeline_meta=meta,
         vehicle_number=vehicle_number,
         occurred_on=occurred_on,
         autonomy_version=autonomy_version,
@@ -243,7 +244,43 @@ def _run(
         longitude=longitude,
         content=corrected,
     )
+    trashed = move_to_trash(issue) if cancel.trash else False
+    extra_meta: dict[str, object] = {"cancel_intent": cancel.meta(settings, trashed=trashed)}
+    if prep.is_multi_speaker:
+        extra_meta["speakers"] = {
+            "count": prep.speaker_count,
+            "driver": driver_label,
+            "turns": [
+                {"speaker": turn.label, "text": turn.text, "start": turn.start, "end": turn.end} for turn in prep.turns
+            ],
+        }
+    issue.pipeline_meta = {**meta, **extra_meta}
     db.add(issue)
     db.commit()
     db.refresh(issue)
     return issue
+
+
+def _extract_and_classify(
+    settings: Settings,
+    taxonomy: Taxonomy,
+    prep: SpeakerPrep,
+    step_errors: dict[str, str],
+) -> tuple[Extraction, ClassificationResult, str | None]:
+    try:
+        extracted = get_extractor(settings).extract(prep.llm_text)
+    except (GatewayError, ExtractionFailed) as exc:
+        step_errors["extraction"] = str(exc)[:500]
+        extracted = Extraction(cause=TextFact(), location=TextFact(), mentioned_time=TextFact())
+        return extracted, ClassificationResult(answers=[]), None
+    driver_text, driver_label = select_driver_text(
+        prep,
+        [extracted.cause.evidence, extracted.location.evidence, extracted.mentioned_time.evidence],
+    )
+    state_text = build_state_text(driver_text, extracted.cause.value, extracted.location.value)
+    try:
+        classified = get_classifier(settings).classify(state_text, build_questions(taxonomy))
+    except (GatewayError, ClassificationFailed) as exc:
+        step_errors["classification"] = str(exc)[:500]
+        classified = ClassificationResult(answers=[])
+    return extracted, classified, driver_label

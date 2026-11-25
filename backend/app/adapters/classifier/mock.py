@@ -13,6 +13,7 @@ from app.adapters.classifier.base import (
     ScoreAnswer,
     ScoreQuestion,
 )
+from app.domain.cancel_intent import CANCEL, CANCEL_QUESTION_ID, KEEP, load_cancel_intent
 from app.domain.taxonomy.loader import Taxonomy, load_taxonomy
 
 
@@ -69,6 +70,8 @@ class MockClassifier(ClassifierAdapter):
         return {item.key: item.keywords for item in group.options}
 
     def _choice(self, state_text: str, question: ChoiceQuestion) -> ChoiceAnswer:
+        if question.id == CANCEL_QUESTION_ID:
+            return self._cancel(state_text)
         keywords = self._keywords_for(question.id)
         scored: list[tuple[str, int, int]] = []
         for option in question.options:
@@ -81,6 +84,18 @@ class MockClassifier(ClassifierAdapter):
             value=best[0],
             probabilities=probabilities,
             confidence=_confidence(best[1]),
+        )
+
+    def _cancel(self, state_text: str) -> ChoiceAnswer:
+        # 단어 그대로가 아니라 "취소해", "삭제해 줘" 같은 요청형만 본다.
+        hits, _earliest = _keyword_hits(state_text, load_cancel_intent().keywords(CANCEL))
+        cancel = 0.95 if hits else 0.03
+        value = CANCEL if hits else KEEP
+        return ChoiceAnswer(
+            id=CANCEL_QUESTION_ID,
+            value=value,
+            probabilities={CANCEL: cancel, KEEP: round(1 - cancel, 4)},
+            confidence=max(cancel, 1 - cancel),
         )
 
     def _score(self, state_text: str, question: ScoreQuestion) -> ScoreAnswer:

@@ -18,10 +18,10 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from app.adapters.audio import NormalizedAudio, normalize_for_stt
+from app.adapters.audio import DenoiseMode, NormalizedAudio, normalize_for_stt
 from app.adapters.gateway.client import GatewayClient
 from app.adapters.gateway.errors import GatewayError
-from app.adapters.stt.base import STTAdapter, STTCapabilities, Transcript
+from app.adapters.stt.base import STTAdapter, STTCapabilities, Transcript, TranscriptSegment
 from app.schemas.common import WordToken
 
 SUBMIT_PATH = "audio/transcriptions/"
@@ -62,6 +62,8 @@ class GatewaySTT(STTAdapter):
         poll_timeout_seconds: float = 300,
         max_audio_bytes: int = 25 * 1024 * 1024,
         ffmpeg_bin: str = "ffmpeg",
+        denoise: DenoiseMode = "off",
+        denoise_bin: str = "deepFilter",
         normalizer: Callable[[Path], NormalizedAudio] | None = None,
         sleep: Callable[[float], None] | None = None,
         monotonic: Callable[[], float] | None = None,
@@ -74,6 +76,8 @@ class GatewaySTT(STTAdapter):
         self._poll_timeout = poll_timeout_seconds
         self._max_audio_bytes = max_audio_bytes
         self._ffmpeg_bin = ffmpeg_bin
+        self._denoise = denoise
+        self._denoise_bin = denoise_bin
         self._normalize = normalizer or self._normalize_file
         self._sleep = sleep or time.sleep
         self._monotonic = monotonic or time.monotonic
@@ -129,6 +133,8 @@ class GatewaySTT(STTAdapter):
             audio_path,
             max_bytes=self._max_audio_bytes,
             ffmpeg_bin=self._ffmpeg_bin,
+            denoise=self._denoise,
+            denoise_bin=self._denoise_bin,
         )
 
 
@@ -156,20 +162,41 @@ def _transcript_from_body(body: dict[str, object], *, language: str) -> Transcri
     text = body.get("text")
     if not isinstance(text, str):
         raise GatewayError("STT 완료 응답에 text 가 없습니다.")
+    raw_segments = body.get("segments")
     return Transcript(
         text=text,
-        words=words_from_segments(body.get("segments")),
+        words=words_from_segments(raw_segments),
+        segments=segments_from_body(raw_segments),
         language=language,
         provider=GatewaySTT.provider_name,
     )
 
 
+def segments_from_body(segments: object) -> list[TranscriptSegment]:
+    return [
+        TranscriptSegment(
+            speaker=speaker,
+            text=text,
+            start=round(start_ms / 1000, 3),
+            end=round(end_ms / 1000, 3),
+        )
+        for speaker, text, start_ms, end_ms in _iter_segments(segments)
+    ]
+
+
 def words_from_segments(segments: object) -> list[WordToken]:
+    words: list[WordToken] = []
+    for speaker, text, start_ms, end_ms in _iter_segments(segments):
+        words.extend(_words_in_span(text, start_ms, end_ms, speaker=speaker))
+    return words
+
+
+def _iter_segments(segments: object) -> list[tuple[str | None, str, int, int]]:
     if segments is None:
         return []
     if not isinstance(segments, list):
         raise GatewayError("STT segments 형식이 리스트가 아닙니다.")
-    words: list[WordToken] = []
+    parsed: list[tuple[str | None, str, int, int]] = []
     for segment in segments:
         if not isinstance(segment, dict):
             raise GatewayError("STT segment 형식이 객체가 아닙니다.")
@@ -180,11 +207,18 @@ def words_from_segments(segments: object) -> list[WordToken]:
         end_ms = _millis(segment.get("end_ms"), "end_ms")
         if end_ms < start_ms:
             end_ms = start_ms
-        words.extend(_words_in_span(text.strip(), start_ms, end_ms))
-    return words
+        parsed.append((_speaker_name(segment.get("speaker")), text.strip(), start_ms, end_ms))
+    return parsed
 
 
-def _words_in_span(text: str, start_ms: int, end_ms: int) -> list[WordToken]:
+def _speaker_name(raw: object) -> str | None:
+    if raw is None or isinstance(raw, bool):
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def _words_in_span(text: str, start_ms: int, end_ms: int, *, speaker: str | None = None) -> list[WordToken]:
     tokens = text.split()
     if not tokens:
         return []
@@ -204,6 +238,7 @@ def _words_in_span(text: str, start_ms: int, end_ms: int) -> list[WordToken]:
                 start=round(cursor, 3),
                 end=round(word_end, 3),
                 confidence=None,
+                speaker=speaker,
             )
         )
         cursor = word_end

@@ -30,6 +30,8 @@ def get_stt_adapter(settings: Settings) -> STTAdapter:
             poll_timeout_seconds=settings.stt_poll_timeout_seconds,
             max_audio_bytes=settings.stt_max_audio_bytes,
             ffmpeg_bin=settings.ffmpeg_bin,
+            denoise=settings.stt_denoise,
+            denoise_bin=settings.stt_denoise_bin,
         )
     never: Never = provider
     raise AssertionError(never)

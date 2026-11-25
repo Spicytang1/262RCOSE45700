@@ -297,6 +297,20 @@ def render_report(
                 "사건 유형 macro F1 은 라벨이 비는 칸 때문에 낮게 보일 수 있습니다."
             )
             lines.append(note)
+    for condition, summary in condition_rows.items():
+        named = {k.removeprefix("field_acc_"): v for k, v in summary.items() if k.startswith("field_acc_")}
+        extra = {
+            "cause": summary.get("cause_accuracy"),
+            "location": summary.get("location_accuracy"),
+            "mentioned_time": summary.get("mentioned_time_accuracy"),
+            "mentioned_time_resolved": summary.get("mentioned_time_resolved_accuracy"),
+        }
+        named.update({k: v for k, v in extra.items() if isinstance(v, float)})
+        if not named:
+            continue
+        lines.extend(["", f"## 항목별 정확도 ({condition})", ""])
+        for name, value in named.items():
+            lines.append(f"- {name}: {_fmt(value)}")
     lines.extend(["", "## 기준 통과", ""])
     for condition, summary in condition_rows.items():
         verdicts = summary.get("pass")
@@ -332,6 +346,7 @@ def summarize_condition(samples: list[dict[str, object]], labels: list[str]) -> 
     event_preds: list[str | None] = []
     field_hits: list[tuple[str | None, str | None]] = []
     hallucinations: list[float] = []
+    per_field: dict[str, list[bool]] = {}
     for sample in samples:
         fields = sample["fields"]
         if isinstance(fields, dict) and isinstance(fields.get("event_type"), dict) and "gold" in fields["event_type"]:
@@ -341,9 +356,12 @@ def summarize_condition(samples: list[dict[str, object]], labels: list[str]) -> 
             for name, value in fields.items():
                 if isinstance(value, dict) and "gold" in value:
                     field_hits.append((value["gold"], value["predicted"]))
+                    per_field.setdefault(name, []).append(bool(value.get("correct")))
         if isinstance(sample.get("hallucination"), float):
             hallucinations.append(float(sample["hallucination"]))
+    by_field = {f"field_acc_{name}": sum(hits) / len(hits) for name, hits in per_field.items() if hits}
     return {
+        **by_field,
         "cer": _mean([float(item["cer"]) for item in samples]),
         "wer": _mean([float(item["wer"]) for item in samples]),
         "term_recall_before": _mean(_present(samples, "term_recall_before")),
@@ -371,6 +389,10 @@ def passes(summary: dict[str, object], thresholds: dict[str, float]) -> dict[str
         ),
         "field_accuracy_min": _at_least(summary.get("field_accuracy"), thresholds.get("field_accuracy_min")),
         "hallucination_max": _at_most(summary.get("hallucination"), thresholds.get("hallucination_max")),
+        "mentioned_time_resolved_min": _at_least(
+            summary.get("mentioned_time_resolved_accuracy"),
+            thresholds.get("mentioned_time_resolved_min"),
+        ),
     }
     return {name: value for name, value in checks.items() if value is not None}
 
@@ -616,7 +638,7 @@ def _first_existing(root: Path, stem: str, suffixes: tuple[str, ...]) -> Path | 
 
 def _duration_seconds(path: Path) -> float | None:
     if path.suffix.lower() != ".wav":
-        return None
+        return _probe_duration(path)
     import wave
 
     with wave.open(str(path), "rb") as handle:
@@ -624,6 +646,23 @@ def _duration_seconds(path: Path) -> float | None:
         if rate <= 0:
             return None
         return handle.getnframes() / rate
+
+
+def _probe_duration(path: Path) -> float | None:
+    import subprocess
+
+    try:
+        done = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        value = float(done.stdout.strip())
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return value if value > 0 else None
 
 
 def _nested_str(payload: dict[str, object], name: str) -> str | None:

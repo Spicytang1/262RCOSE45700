@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     stt_poll_timeout_seconds: float = 300
     stt_max_audio_mb: int = 25
     ffmpeg_bin: str = "ffmpeg"
+    stt_denoise: Literal["off", "ffmpeg_afftdn", "deepfilternet"] = "off"
+    stt_denoise_bin: str = "deepFilter"
     extractor_provider: Literal["mock", "gateway_claude"] = "mock"
     classifier_provider: Literal["mock", "gateway_jev"] = "mock"
 
@@ -68,6 +70,10 @@ class Settings(BaseSettings):
     cls_conf_high: float = 0.85
     cls_conf_low: float = 0.55
     stt_conf_min: float = 0.6
+    # 녹음 취소 의도. cancel 확률이 high 이상이면 휴지통, low 이상이면 검토 필요.
+    cancel_intent_enabled: bool = True
+    cancel_conf_high: float = 0.85
+    cancel_conf_low: float = 0.5
 
     cors_origins: str = "http://localhost:5173"
 

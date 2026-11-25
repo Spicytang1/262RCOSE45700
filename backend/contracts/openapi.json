@@ -2283,6 +2283,9 @@
                 "type": "null"
               }
             ]
+          },
+          "cancel_intent": {
+            "$ref": "#/components/schemas/Classified_str_"
           }
         },
         "type": "object",

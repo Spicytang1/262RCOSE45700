@@ -17,6 +17,7 @@ from app.adapters.classifier.base import (
     ScoreQuestion,
 )
 from app.adapters.gateway.client import GatewayClient
+from app.domain.cancel_intent import CANCEL_QUESTION_ID, load_cancel_intent
 from app.domain.jev_wording import QuestionWording, load_jev_wording
 from app.domain.taxonomy.loader import Taxonomy, load_taxonomy
 
@@ -32,7 +33,7 @@ class GatewayJevClassifier(ClassifierAdapter):
         self._client = client
         self.model_version = model_version.strip()
         self._taxonomy = taxonomy or load_taxonomy()
-        self._wording = load_jev_wording()
+        self._wording = {**load_jev_wording(), CANCEL_QUESTION_ID: load_cancel_intent().wording}
 
     def classify(self, state_text: str, questions: list[Question]) -> ClassificationResult:
         if not state_text.strip():
