@@ -5,20 +5,61 @@ import { formatTime } from "@/lib/formatTime";
 import useAudioLevels from "./useAudioLevels";
 import Waveform from "./Waveform";
 
-/** 녹음이 끝난 이유: 사용자가 직접 끝냈는지, 무음으로 자동 종료됐는지 */
-export type FinishReason = "manual" | "silence";
+/** 녹음이 끝난 이유: 사용자가 직접 끝냈는지, 음성 명령인지, 무음으로 자동 종료됐는지 */
+export type FinishReason = "manual" | "voice" | "silence";
 
 type Props = {
   onFinish: (blob: Blob, durationSec: number, reason: FinishReason) => void;
   onCancel: () => void;
 };
 
-const SILENCE_MS = 4000; // 자동 종료까지 필요한 무음 지속 시간
+interface SpeechResultLike {
+  readonly isFinal: boolean;
+  readonly length: number;
+  readonly [index: number]: { readonly transcript: string };
+}
+
+interface SpeechRecognitionEventLike {
+  readonly resultIndex: number;
+  readonly results: {
+    readonly length: number;
+    readonly [index: number]: SpeechResultLike;
+  };
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: { readonly error: string }) => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+interface SpeechRecognitionConstructor {
+  new(): SpeechRecognitionLike;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+const SILENCE_MS = 4000;
+const VOICE_FINISH_PHRASES = ["종료", "끝내기"]; // 음성인식 종료 키워드로 선정할 단어들 목록
 
 export default function Record({ onFinish, onCancel }: Props) {
   const [seconds, setSeconds] = useState(0);
   const [ready, setReady] = useState(false); // 녹음이 실제로 시작됐는지
   const [error, setError] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState("음성 종료 명령을 준비하고 있어요");
+  const [voiceTranscript, setVoiceTranscript] = useState("");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const { levels, quietMs } = useAudioLevels(micStream);
   const silenceRatio = Math.min(quietMs / SILENCE_MS, 1);
@@ -26,6 +67,8 @@ export default function Record({ onFinish, onCancel }: Props) {
   // useRef: 화면을 다시 그리지 않고 값을 계속 들고 있는 상자
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const finishedRef = useRef(false);
 
   useEffect(() => {
     let ignore = false; // 화면이 먼저 사라졌는지 표시
@@ -72,6 +115,8 @@ export default function Record({ onFinish, onCancel }: Props) {
     return () => {
       ignore = true;
       clearInterval(timer);
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
       const recorder = recorderRef.current;
       if (recorder && recorder.state !== "inactive") recorder.stop();
       stream?.getTracks().forEach((t) => t.stop());
@@ -79,8 +124,12 @@ export default function Record({ onFinish, onCancel }: Props) {
   }, []);
 
   function handleFinish(reason: FinishReason) {
+    if (finishedRef.current) return;
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
+
+    finishedRef.current = true;
+    recognitionRef.current?.abort();
 
     // 녹음이 완전히 멈춘 뒤 조각들을 하나의 파일(Blob)로 합침
     const durationSec = seconds;
@@ -98,6 +147,76 @@ export default function Record({ onFinish, onCancel }: Props) {
     if (!ready || error) return;
     if (quietMs >= SILENCE_MS) finishRef.current("silence");
   }, [quietMs, ready, error]);
+
+  useEffect(() => {
+    if (!ready || error) return;
+
+    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!Recognition) {
+      setVoiceStatus("이 브라우저에서는 음성 종료 명령을 사용할 수 없어요");
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = "ko-KR";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        if (!result?.[0]?.transcript) continue;
+        const text = result[0].transcript.trim();
+        if (result.isFinal) setVoiceTranscript(text);
+        else interim += `${text} `;
+
+        const transcript = text
+          .replace(/\s+/g, "")
+          .replace(/[.,!?~]/g, "")
+          .toLowerCase();
+        const matched = VOICE_FINISH_PHRASES.some((phrase) => {
+          const normalized = phrase.replace(/\s+/g, "");
+          return transcript.includes(normalized);
+        });
+        if (matched) {
+          setVoiceStatus("음성 종료 명령을 인식했어요");
+          finishRef.current("voice");
+          return;
+        }
+      }
+      if (interim) setVoiceTranscript(interim.trim());
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === "aborted" || event.error === "not-allowed") return;
+      setVoiceStatus("음성 명령 인식을 잠시 재시도하고 있어요");
+    };
+
+    recognition.onend = () => {
+      if (finishedRef.current) return;
+      try {
+        recognition.start();
+      } catch {
+        setVoiceStatus("음성 종료 명령을 다시 시작할 수 없어요");
+      }
+    };
+
+    try {
+      recognition.start();
+      setVoiceStatus("‘종료’라고 말하면 녹음이 끝나요");
+    } catch {
+      setVoiceStatus("음성 종료 명령을 시작하지 못했어요");
+    }
+
+    return () => {
+      recognition.onend = null;
+      recognition.abort();
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+    };
+  }, [ready, error]);
 
   return (
     <main className="app-frame mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-ink px-5 pt-6 pb-8 text-white">
@@ -128,9 +247,12 @@ export default function Record({ onFinish, onCancel }: Props) {
             {error}
           </p>
         ) : (
-          <p className="text-[16px] font-semibold text-kakao" aria-live="polite">
-            {!ready ? "마이크를 준비하고 있어요" : silenceRatio > 0.25 ? `조용해서 ${Math.max(1, Math.ceil((1 - silenceRatio) * SILENCE_MS / 1000))}초 뒤에 녹음이 끝나요` : "듣고 있어요"}
-          </p>
+          <>
+            <p className="text-[16px] font-semibold text-kakao" aria-live="polite">
+              {!ready ? "마이크를 준비하고 있어요" : silenceRatio > 0.25 ? `조용해서 ${Math.max(1, Math.ceil((1 - silenceRatio) * SILENCE_MS / 1000))}초 뒤에 녹음이 끝나요` : "듣고 있어요"}
+            </p>
+            {ready && <p className="max-w-[300px] text-center text-[13px] text-white/65" aria-live="polite">{voiceStatus}</p>}
+          </>
         )}
 
         {/* 파형 표시 (마이크를 못 쓰면 숨김) */}
@@ -140,6 +262,11 @@ export default function Record({ onFinish, onCancel }: Props) {
             <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-white/15" aria-hidden="true">
               <div className="h-full rounded-full bg-kakao transition-[width] duration-100 ease-linear" style={{ width: `${silenceRatio * 100}%` }} />
             </div>
+            {voiceTranscript && (
+              <p className="mt-3 min-h-5 w-full truncate px-2 text-center text-[12px] leading-5 text-white/55" aria-live="polite">
+                {voiceTranscript}
+              </p>
+            )}
           </div>
         )}
       </section>
