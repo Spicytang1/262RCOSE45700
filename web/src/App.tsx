@@ -20,6 +20,7 @@ import { captureRecordingLocation } from "@/lib/recordingLocation";
 import { resolveSupervisor, useSessionProfiles } from "@/lib/sessionProfiles";
 import Settings from "@/screens/Settings/Settings";
 import { requestDrivePermissions, type DrivePermissions } from "@/lib/drivePermissions";
+import { logoutSession } from "@/lib/api";
 
 type Screen = "login" | "standby" | "record" | "addRecord" | "review";
 
@@ -106,10 +107,11 @@ export default function App() {
   }
 
   function logoutSupervisor() {
-    // TODO(backend): 화면 상태 초기화 외에 서버 로그아웃으로 세션도 무효화한다. 감독관 전환 시에도 같은 처리가 필요하다.
-    clearDrivePermissions();
-    clearClips(); setSupervisor(null); setNotice(""); setActionError(""); setScreen("login");
-    setListOptions(INITIAL_LIST_OPTIONS); navigateStandby();
+    void logoutSession().finally(() => {
+      clearDrivePermissions();
+      clearClips(); setSupervisor(null); setNotice(""); setActionError(""); setScreen("login");
+      setListOptions(INITIAL_LIST_OPTIONS); navigateStandby();
+    });
   }
 
   async function loginSupervisor(selected: Supervisor, signal: AbortSignal) {
@@ -292,22 +294,22 @@ export default function App() {
   }
 
   return page("standby", 1, <>
-  <Standby
-    permissions={drivePermissions}
-    profile={profile}
-    recordingCount={recordingCount}
-    session={currentSession}
-    loadState={data.loading ? "loading" : data.error ? "error" : "ready"}
-    actionState={sessionAction ? "busy" : "idle"}
-    actionError={actionError}
-    notice={notice}
-    onStart={beginRecording}
-    onStartSession={() => void changeSession("start")}
-    onEndSession={() => setConfirmEnd("end")}
-    onOpenRecordings={() => { setListOptions(INITIAL_LIST_OPTIONS); navigateRecordings(); }}
-    onRetry={() => void data.reload()}
-    onChangeSupervisor={changeSupervisor}
-  />
-  {confirmEnd && <ConfirmSheet title={confirmEnd === "switch" ? "운행을 종료하고 감독관을 바꿀까요?" : "이번 운행을 종료할까요?"} message="보관한 녹음은 그대로 남아요." confirmLabel={confirmEnd === "switch" ? "종료하고 바꾸기" : "운행 종료"} onCancel={() => setConfirmEnd(null)} onConfirm={() => { const mode = confirmEnd; setConfirmEnd(null); void (mode === "switch" ? changeSession("end", true) : changeSession("end")); }} />}
+    <Standby
+      permissions={drivePermissions}
+      profile={profile}
+      recordingCount={recordingCount}
+      session={currentSession}
+      loadState={data.loading ? "loading" : data.error ? "error" : "ready"}
+      actionState={sessionAction ? "busy" : "idle"}
+      actionError={actionError}
+      notice={notice}
+      onStart={beginRecording}
+      onStartSession={() => void changeSession("start")}
+      onEndSession={() => setConfirmEnd("end")}
+      onOpenRecordings={() => { setListOptions(INITIAL_LIST_OPTIONS); navigateRecordings(); }}
+      onRetry={() => void data.reload()}
+      onChangeSupervisor={changeSupervisor}
+    />
+    {confirmEnd && <ConfirmSheet title={confirmEnd === "switch" ? "운행을 종료하고 감독관을 바꿀까요?" : "이번 운행을 종료할까요?"} message="보관한 녹음은 그대로 남아요." confirmLabel={confirmEnd === "switch" ? "종료하고 바꾸기" : "운행 종료"} onCancel={() => setConfirmEnd(null)} onConfirm={() => { const mode = confirmEnd; setConfirmEnd(null); void (mode === "switch" ? changeSession("end", true) : changeSession("end")); }} />}
   </>);
 }
