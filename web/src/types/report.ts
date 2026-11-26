@@ -15,12 +15,15 @@ export type DriveSession = {
   endedAt: string | null;
 };
 
-export type RecordingStatus = "new" | "reviewed" | "flagged";
+export type RecordingStatus = "new" | "reviewed" | "flagged" | "trashed";
 export type StructuredFieldKey = "roadType" | "previousAction" | "targetType" | "reaction";
 export type RecordingReview = {
   id: string;
   title: string;
   status: RecordingStatus;
+  /** 휴지통 복구 시 원래 검토 상태로 돌리기 위한 값이다. */
+  previousStatusBeforeTrash?: "new" | "reviewed" | "flagged";
+  trashedAt?: string;
   note: string;
   /** 이전 수기 항목도 지우지 않고 보존한다. */
   fields: Partial<Record<StructuredFieldKey | "location" | "event" | "situation" | "weather", string>>;

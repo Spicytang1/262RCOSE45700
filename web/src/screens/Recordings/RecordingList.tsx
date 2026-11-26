@@ -58,20 +58,20 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
           const groupSession = sessionById.get(sessionId);
           const label = groupSession ? `${groupSession.number}회차` : sessionId ? "회차 정보 없음" : "이전 녹음 (회차 없음)";
           return <section key={sessionId} aria-label={label} className="rise" style={rise(Math.min(groupIndex, 3) * 60)}><h2 className="mb-3 text-[15px] font-extrabold text-ink">{label}</h2><div className="flex flex-col gap-3">{records.map((record, cardIndex) => {
-          const session = record.sessionId ? sessionById.get(record.sessionId) : undefined;
-          const status = record.review?.status ?? "new";
-          return <button key={record.id} type="button" onClick={() => onOpen(record.id)} style={rise(60 + Math.min(cardIndex, 7) * 45)} className={`rise relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left shadow-card transition-[background-color,scale] duration-150 hover:border-ink-sub active:scale-[0.99] active:bg-kakao-soft ${focusStyle}`}>
-            <span className="flex w-full min-w-0 items-center gap-3">
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-ok-soft text-ok-ink" : status === "flagged" ? "bg-warning-soft text-warning-ink" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
-              {/* TODO(backend): 저장된 녹음 위치의 좌표를 주소로 변환한 서버 응답으로 교체한다. 현재는 위치 유무와 관계없는 표시용 예시이며 원본에 저장하지 않는다. */}
-              <span className="shrink-0 whitespace-nowrap text-[13px] font-bold text-ink">{DEMO_ADDRESS} <span className="text-[10px] font-normal text-ink-sub">(임시 주소)</span></span>
-            </span>
-            <span title={recordingTitle(record)} className="w-full truncate text-[13px] font-medium text-ink-sub">{recordingTitle(record)}</span>
-            <span className="text-[18px] leading-[1.7] font-extrabold [overflow-wrap:anywhere]">{recordingSummary(record)}</span>
-            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-sub"><span>{dateText(record.recordedAt)} {timeText(record.recordedAt)}</span><span className="inline-flex items-center gap-1 tabular-nums"><Mic className="size-3.5" aria-hidden="true" />{formatTime(record.durationSec)}</span><span>{session ? `${session.number}회차` : "회차 미지정"}</span></span>
-            <ChevronRight className="absolute top-1/2 right-3 size-5 -translate-y-1/2 text-ink-sub" aria-hidden="true" />
-          </button>;
-        })}</div></section>;
+            const session = record.sessionId ? sessionById.get(record.sessionId) : undefined;
+            const status = record.review?.status ?? "new";
+            return <button key={record.id} type="button" onClick={() => onOpen(record.id)} style={rise(60 + Math.min(cardIndex, 7) * 45)} className={`rise relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left shadow-card transition-[background-color,scale] duration-150 hover:border-ink-sub active:scale-[0.99] active:bg-kakao-soft ${focusStyle}`}>
+              <span className="flex w-full min-w-0 items-center gap-3">
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-ok-soft text-ok-ink" : status === "flagged" ? "bg-warning-soft text-warning-ink" : status === "trashed" ? "bg-danger-soft text-danger-ink" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
+                {/* TODO(backend): 저장된 녹음 위치의 좌표를 주소로 변환한 서버 응답으로 교체한다. 현재는 위치 유무와 관계없는 표시용 예시이며 원본에 저장하지 않는다. */}
+                <span className="shrink-0 whitespace-nowrap text-[13px] font-bold text-ink">{DEMO_ADDRESS} <span className="text-[10px] font-normal text-ink-sub">(임시 주소)</span></span>
+              </span>
+              <span title={recordingTitle(record)} className="w-full truncate text-[13px] font-medium text-ink-sub">{recordingTitle(record)}</span>
+              <span className="text-[18px] leading-[1.7] font-extrabold [overflow-wrap:anywhere]">{recordingSummary(record)}</span>
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-ink-sub"><span>{dateText(record.recordedAt)} {timeText(record.recordedAt)}</span><span className="inline-flex items-center gap-1 tabular-nums"><Mic className="size-3.5" aria-hidden="true" />{formatTime(record.durationSec)}</span><span>{session ? `${session.number}회차` : "회차 미지정"}</span></span>
+              <ChevronRight className="absolute top-1/2 right-3 size-5 -translate-y-1/2 text-ink-sub" aria-hidden="true" />
+            </button>;
+          })}</div></section>;
         })}
         {list.length > options.limit && <button type="button" onClick={() => onOptions({ ...options, limit: options.limit + 30 })} className={`${control} font-bold`}>녹음 더 보기</button>}
       </div>}

@@ -4,26 +4,26 @@ import type { Supervisor, SupervisorId } from "@/types/report";
 export type SupervisorDirectory = {
   mode: "demo" | "backend";
   list: (signal?: AbortSignal) => Promise<Supervisor[]>;
-  authenticate: (id: SupervisorId, pin: string, signal?: AbortSignal) => Promise<boolean>;
+  authenticate: (id: SupervisorId, code: string, signal?: AbortSignal) => Promise<boolean>;
 };
 
-// 시연용 감독관 계정과 개인 PIN (실제 연결 시 서버 응답으로 교체한다)
-const demoAccounts: { id: number; name: string; pin: string }[] = [
-  { id: 1, name: "정해인", pin: "1111" },
-  { id: 2, name: "김우빈", pin: "1234" },
-  { id: 3, name: "이종석", pin: "4567" },
-  { id: 4, name: "강동원", pin: "2323" },
-  { id: 5, name: "손예진", pin: "9878" },
-  { id: 6, name: "김유정", pin: "6543" },
+// 시연용 감독관 계정과 개인 코드 (실제 연결 시 서버 응답으로 교체한다)
+const demoAccounts: { id: number; name: string; code: string }[] = [
+  { id: 1, name: "정해인", code: "haein123" },
+  { id: 2, name: "김우빈", code: "woobin12" },
+  { id: 3, name: "이종석", code: "jongsuk1" },
+  { id: 4, name: "강동원", code: "dongwon1" },
+  { id: 5, name: "손예진", code: "yejin123" },
+  { id: 6, name: "김유정", code: "yoojung1" },
 ];
 
 // TODO(backend): 고정 목록 대신 서버에서 감독관 고유 ID·표시 이름·사진 URL 목록을 조회한다.
-// TODO(backend): 공통 PIN 비교 대신 PIN을 보안 연결로 전송해 검증하고 서버 로그인 세션을 발급받는다.
-// 목록 응답에는 PIN·해시를 포함하지 않고, 실패 횟수 제한과 접근 권한 검사는 서버에서 수행한다.
+// TODO(backend): 공통 코드 비교 대신 코드를 보안 연결로 전송해 검증하고 서버 로그인 세션을 발급받는다.
+// 목록 응답에는 코드를 포함하지 않고, 실패 횟수 제한과 접근 권한 검사는 서버에서 수행한다.
 const demoDirectory: SupervisorDirectory = {
   mode: "demo",
   list: async () => demoAccounts.map(({ id, name }) => ({ id, name, photoUrl: null })),
-  authenticate: async (id, pin) => demoAccounts.some(account => account.id === id && account.pin === pin),
+  authenticate: async (id, code) => demoAccounts.some(account => account.id === id && account.code === code),
 };
 
 // TODO(backend): 앱 초기화 시 configureSupervisorDirectory로 실제 제공자를 주입한다. 미연결 시 시연 로그인이 유지된다.
@@ -54,8 +54,9 @@ export async function listSupervisors(signal?: AbortSignal): Promise<Supervisor[
   });
 }
 
-/** PIN 4자리로 감독관을 찾는다. 일치하는 감독관이 없으면 null을 돌려준다. */
-export async function findSupervisorByPin(pin: string): Promise<Supervisor | null> {
-  const found = demoAccounts.find(account => account.pin === pin);
+/** 입력된 코드와 일치하는 시연용 감독관을 찾는다. */
+export async function findSupervisorByCode(code: string): Promise<Supervisor | null> {
+  const found = demoAccounts.find(account => account.code === code);
   return found ? { id: found.id, name: found.name, photoUrl: null } : null;
 }
+
