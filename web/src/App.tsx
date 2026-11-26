@@ -193,7 +193,7 @@ export default function App() {
     };
     finishReasonRef.current = reason;
     // 화면을 보지 않아도 알 수 있게, 말 없이 끝난 경우는 소리로도 알린다.
-    if (reason === "nospeech") void speak("말씀이 없어서 녹음을 마쳤어요. 나중에 목록에서 채워 주세요.");
+    if (reason === "nospeech") void speak("말씀이 없어서 녹음을 마쳤어요. 나중에 목록에서 채워 주세요.", "ended");
     setPending(recording);
     void commitRecording(recording);
   }
