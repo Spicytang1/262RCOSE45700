@@ -4,22 +4,27 @@ import ProfileAvatar from "@/components/ProfileAvatar";
 import { RecordingFrame, RecordingHeader, RecordingPanel } from "@/screens/Recordings/RecordingChrome";
 import { focusStyle } from "@/lib/recordingPresentation";
 import { applySessionProfile } from "@/lib/sessionProfiles";
+import { changeMyCode, logoutAllSessions, updateMyName } from "@/lib/api";
 import { prepareProfilePhoto } from "@/lib/profilePhoto";
 import { setRecordingNavigationGuard } from "@/lib/useRecordingRoute";
 import type { Supervisor } from "@/types/report";
 
-export default function Settings({ profile, onBack }: { profile: Supervisor; onBack: () => void }) {
+export default function Settings({ profile, onBack, onNameChange, onLoggedOut }: { profile: Supervisor; onBack: () => void; onNameChange: (name: string) => void; onLoggedOut: () => void }) {
   const [name, setName] = useState(profile.name);
   const [photoUrl, setPhotoUrl] = useState(profile.photoUrl);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = useState(false);
+  const [codes, setCodes] = useState({ current: "", next: "" });
+  const [codeMessage, setCodeMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
+  const [codeBusy, setCodeBusy] = useState(false);
   const locked = useRef(false);
   const mounted = useRef(true);
   const profileDirty = name !== profile.name || photoUrl !== profile.photoUrl;
   const dirty = profileDirty;
-  const busy = photoBusy;
+  const busy = photoBusy || saving;
   const guardState = useRef({ dirty, busy });
   useEffect(() => { guardState.current = { dirty, busy }; }, [dirty, busy]);
   const control = `w-full min-h-12 rounded-button border border-line bg-white px-3 text-[15px] ${focusStyle}`;
@@ -43,22 +48,44 @@ export default function Settings({ profile, onBack }: { profile: Supervisor; onB
     finally { locked.current = false; if (mounted.current) setPhotoBusy(false); }
   }
 
-  function applyProfile(event: React.FormEvent) {
-    // TODO(backend): applySessionProfile을 서버 저장으로 바꾸면 비동기 처리·중복 제출 방지·성공 응답 프로필 반영을 연결한다.
+  /** 이름은 서버 계정에 저장한다. 사진은 서버에 저장 기능이 없어 이 탭에만 적용한다. */
+  async function applyProfile(event: React.FormEvent) {
     event.preventDefault();
     if (locked.current) return;
     setProfileError(""); setProfileNotice("");
-    if (!name.trim() || name.trim().length > 40) { setProfileError("이름은 1~40자로 입력해 주세요."); document.getElementById("profile-name")?.focus(); return; }
-    try { applySessionProfile(profile.id, name, photoUrl); setName(name.trim()); setProfileNotice("이름과 사진을 적용했어요."); }
-    catch { setProfileError("설정을 보관하지 못했어요. 탭의 저장 공간과 저장 허용 여부를 확인하고 다시 시도해 주세요."); }
+    const trimmed = name.trim();
+    if (!trimmed || trimmed.length > 40) { setProfileError("이름은 1~40자로 입력해 주세요."); document.getElementById("profile-name")?.focus(); return; }
+    locked.current = true; setSaving(true);
+    try {
+      if (trimmed !== profile.name) { const user = await updateMyName(trimmed); onNameChange(user.display_name); }
+      applySessionProfile(profile.id, trimmed, photoUrl);
+      if (mounted.current) { setName(trimmed); setProfileNotice("이름과 사진을 적용했어요."); }
+    } catch (error) { if (mounted.current) setProfileError(error instanceof Error ? error.message : "이름을 바꾸지 못했어요."); }
+    finally { locked.current = false; if (mounted.current) setSaving(false); }
+  }
+
+  async function submitCode(event: React.FormEvent) {
+    event.preventDefault();
+    if (codeBusy) return;
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,64}$/.test(codes.next)) { setCodeMessage({ kind: "error", text: "새 코드는 영문과 숫자를 모두 넣어 8~64자로 입력해 주세요." }); return; }
+    setCodeBusy(true); setCodeMessage(null);
+    try { await changeMyCode(codes.current, codes.next); setCodes({ current: "", next: "" }); setCodeMessage({ kind: "ok", text: "로그인 코드를 바꿨어요. 다음 로그인부터 새 코드를 써 주세요." }); }
+    catch (error) { setCodeMessage({ kind: "error", text: error instanceof Error ? error.message : "로그인 코드를 바꾸지 못했어요." }); }
+    finally { setCodeBusy(false); }
+  }
+
+  async function logoutEverywhere() {
+    if (!window.confirm("이 기기를 포함한 모든 기기에서 로그아웃할까요?")) return;
+    try { await logoutAllSessions(); } catch { /* 이 기기는 그대로 로그아웃한다. */ }
+    onLoggedOut();
   }
 
   return <RecordingFrame>
     <RecordingHeader title="환경설정" backLabel="대기" onBack={onBack} />
     <div className="flex flex-col gap-5 px-5 pt-5 pb-8">
-      <p className="rounded-card bg-kakao-soft p-4 text-[13px] leading-[1.8]">현재 감독관의 설정이에요. 이 탭을 닫기 전까지만 유지되며, 다른 기기에는 반영되지 않아요. 실제 계정의 이름·비밀번호를 바꾸는 기능은 아니에요.</p>
+      <p className="rounded-card bg-kakao-soft p-4 text-[13px] leading-[1.8]">이름과 로그인 코드는 서버 계정에 저장돼요. 사진은 이 탭에서만 보여요.</p>
       <RecordingPanel title="프로필">
-        <form onSubmit={applyProfile} noValidate className="flex flex-col gap-5">
+        <form onSubmit={event => void applyProfile(event)} noValidate className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center gap-4">
             <ProfileAvatar profile={{ name: name || profile.name, photoUrl }} size="large" />
             <div className="flex flex-col gap-1">
@@ -75,6 +102,15 @@ export default function Settings({ profile, onBack }: { profile: Supervisor; onB
         </form>
       </RecordingPanel>
       <p className="text-[12px] text-ink-sub">이름을 바꿔도 기존 녹음과 운행 회차는 그대로 남아요.</p>
+      <RecordingPanel title="로그인 코드 변경">
+        <form onSubmit={event => void submitCode(event)} className="flex flex-col gap-3">
+          <div><label htmlFor="code-current" className="mb-2 block text-[14px] font-bold">지금 코드</label><input id="code-current" type="password" autoComplete="current-password" value={codes.current} disabled={codeBusy} onChange={event => setCodes(value => ({ ...value, current: event.target.value }))} className={control} /></div>
+          <div><label htmlFor="code-next" className="mb-2 block text-[14px] font-bold">새 코드</label><input id="code-next" type="password" autoComplete="new-password" value={codes.next} disabled={codeBusy} onChange={event => setCodes(value => ({ ...value, next: event.target.value }))} className={control} /><p className="mt-1 text-[12px] text-ink-sub">영문과 숫자를 모두 넣어 8자 이상</p></div>
+          {codeMessage && <p role={codeMessage.kind === "error" ? "alert" : "status"} className={`text-[13px] ${codeMessage.kind === "error" ? "text-danger-ink" : "text-ink-sub"}`}>{codeMessage.text}</p>}
+          <button type="submit" disabled={codeBusy || !codes.current || !codes.next} className={`min-h-12 rounded-button bg-ink px-4 font-bold text-white disabled:opacity-40 ${focusStyle}`}>{codeBusy ? "바꾸는 중…" : "코드 바꾸기"}</button>
+        </form>
+      </RecordingPanel>
+      <button type="button" onClick={() => void logoutEverywhere()} className={`min-h-12 rounded-button border border-line bg-white px-4 text-[14px] font-bold text-danger-ink ${focusStyle}`}>모든 기기에서 로그아웃</button>
     </div>
   </RecordingFrame>;
 }

@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { MicOff, Square } from "lucide-react";
 import Button from "@/components/Button";
 import { formatTime } from "@/lib/formatTime";
+import { speak, stopSpeaking } from "@/lib/speak";
 import useAudioLevels from "./useAudioLevels";
 import Waveform from "./Waveform";
 
-/** 녹음이 끝난 이유: 사용자가 직접 끝냈는지, 음성 명령인지, 무음으로 자동 종료됐는지 */
-export type FinishReason = "manual" | "voice" | "silence";
+/** 녹음이 끝난 이유: 직접 끝냄 / 음성 명령 / 말한 뒤 무음 / 처음부터 말이 없음 */
+export type FinishReason = "manual" | "voice" | "silence" | "nospeech";
 
 type Props = {
   onFinish: (blob: Blob, durationSec: number, reason: FinishReason) => void;
@@ -52,6 +53,11 @@ declare global {
 }
 
 const SILENCE_MS = 4000;
+/** 녹음을 시작하고 이만큼 말이 없으면 화면과 음성으로 "이슈를 말씀해 주세요"라고 알린다. */
+const PROMPT_AFTER_MS = 4000;
+/** 그 뒤에도 계속 말이 없으면 녹음을 자동으로 끝낸다. (시작부터 계산) */
+const NO_SPEECH_END_MS = 12000;
+const PROMPT_TEXT = "이슈를 말씀해 주세요";
 const VOICE_FINISH_PHRASES = ["종료", "끝내기"]; // 음성인식 종료 키워드로 선정할 단어들 목록
 
 export default function Record({ onFinish, onCancel }: Props) {
@@ -61,9 +67,13 @@ export default function Record({ onFinish, onCancel }: Props) {
   const [voiceStatus, setVoiceStatus] = useState("음성 종료 명령을 준비하고 있어요");
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
-  const { levels, quietMs, startingSilentMs } = useAudioLevels(micStream);
+  // 앱이 안내를 읽는 동안에는 그 소리를 목소리로 보지 않는다.
+  const speakingRef = useRef(false);
+  const { levels, quietMs, startingSilentMs, vadFailed } = useAudioLevels(micStream, speakingRef);
   const silenceRatio = Math.min(quietMs / SILENCE_MS, 1);
-  const isWaitingForIssue = ready && startingSilentMs >= SILENCE_MS;
+  const isWaitingForIssue = ready && startingSilentMs >= PROMPT_AFTER_MS;
+  const noSpeechLeft = Math.max(1, Math.ceil((NO_SPEECH_END_MS - startingSilentMs) / 1000));
+  const promptedRef = useRef(false);
 
   // useRef: 화면을 다시 그리지 않고 값을 계속 들고 있는 상자
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -116,6 +126,8 @@ export default function Record({ onFinish, onCancel }: Props) {
     return () => {
       ignore = true;
       clearInterval(timer);
+      stopSpeaking();
+      speakingRef.current = false;
       recognitionRef.current?.abort();
       recognitionRef.current = null;
       const recorder = recorderRef.current;
@@ -149,6 +161,25 @@ export default function Record({ onFinish, onCancel }: Props) {
     if (quietMs >= SILENCE_MS) finishRef.current("silence");
   }, [quietMs, ready, error]);
 
+  // 말이 없으면 한 번 음성으로 안내한다. 안내 소리가 녹음에 섞이지 않게 그동안 녹음을 잠깐 멈춘다.
+  useEffect(() => {
+    if (!isWaitingForIssue || promptedRef.current || finishedRef.current) return;
+    promptedRef.current = true;
+    speakingRef.current = true;
+    const recorder = recorderRef.current;
+    if (recorder?.state === "recording") recorder.pause();
+    void speak(PROMPT_TEXT).then(() => {
+      speakingRef.current = false;
+      if (recorder?.state === "paused" && !finishedRef.current) recorder.resume();
+    });
+  }, [isWaitingForIssue]);
+
+  // 안내 뒤에도 계속 말이 없으면 자동으로 끝낸다. 이슈를 놓치지 않도록 빈 녹음도 목록에 남긴다.
+  useEffect(() => {
+    if (!ready || error) return;
+    if (startingSilentMs >= NO_SPEECH_END_MS) finishRef.current("nospeech");
+  }, [startingSilentMs, ready, error]);
+
   useEffect(() => {
     if (!ready || error) return;
 
@@ -166,6 +197,7 @@ export default function Record({ onFinish, onCancel }: Props) {
     recognitionRef.current = recognition;
 
     recognition.onresult = (event) => {
+      if (speakingRef.current) return; // 앱 안내 음성은 명령으로 보지 않는다.
       let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
@@ -253,12 +285,13 @@ export default function Record({ onFinish, onCancel }: Props) {
               {!ready
                 ? "마이크를 준비하고 있어요"
                 : isWaitingForIssue
-                  ? "이슈를 말해주세요"
+                  ? "이슈를 말씀해 주세요"
                   : silenceRatio > 0.25
                     ? `조용해서 ${Math.max(1, Math.ceil((1 - silenceRatio) * SILENCE_MS / 1000))}초 뒤에 녹음이 끝나요`
                     : "듣고 있어요"}
             </p>
-            {ready && <p className="max-w-[300px] text-center text-[13px] text-white/65" aria-live="polite">{voiceStatus}</p>}
+            {ready && isWaitingForIssue && <p className="text-[14px] font-semibold text-white/80" aria-live="polite">말이 없으면 {noSpeechLeft}초 뒤에 녹음이 끝나요</p>}
+            {ready && <p className="max-w-[300px] text-center text-[13px] text-white/65" aria-live="polite">{vadFailed ? "목소리 감지를 불러오지 못해 자동 종료가 꺼졌어요. ‘종료’라고 말하거나 버튼을 눌러 주세요" : voiceStatus}</p>}
           </>
         )}
 

@@ -5,7 +5,7 @@ import { loginWithCode } from "@/lib/api";
 
 const focusStyle = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink";
 
-export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor, signal: AbortSignal) => void | Promise<void> }) {
+export default function Login({ onLogin, notice = "" }: { onLogin: (supervisor: Supervisor, signal: AbortSignal) => void | Promise<void>; notice?: string }) {
   const [busy, setBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
   const [code, setCode] = useState("");
@@ -51,7 +51,7 @@ export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor, s
         <form onSubmit={event => void submitCode(event)} className="rise mt-[clamp(12px,3dvh,32px)]" style={{ "--d": "210ms" } as React.CSSProperties}>
           <label htmlFor="login-code" className="sr-only">로그인 코드</label>
           <input id="login-code" name="login-code" type="text" autoComplete="off" autoCapitalize="off" spellCheck={false} value={code} disabled={busy} onChange={event => { setCode(event.target.value); setError(""); }} aria-invalid={!!error} aria-describedby="login-code-help" placeholder="로그인 코드" className={`h-[clamp(52px,8dvh,68px)] w-full rounded-[20px] bg-white/[0.09] px-5 text-[18px] font-semibold tracking-[0.08em] text-white placeholder:text-[14px] placeholder:font-normal placeholder:tracking-normal placeholder:text-white/45 ring-1 outline-none transition-[box-shadow,background-color] focus:ring-2 focus:ring-kakao ${error ? "ring-danger-soft" : "ring-white/15"}`} />
-          <p id="login-code-help" role={error ? "alert" : "status"} className={`mt-2 min-h-6 text-[13px] leading-[1.7] ${error ? "text-danger-soft" : "text-white/60"}`}>{error || (busy ? "로그인 정보를 확인하고 있어요…" : "발급된 로그인 코드를 입력해 주세요.")}</p>
+          <p id="login-code-help" role={error ? "alert" : "status"} className={`mt-2 min-h-6 text-[13px] leading-[1.7] ${error ? "text-danger-soft" : "text-white/60"}`}>{error || (busy ? "로그인 정보를 확인하고 있어요…" : notice || "발급된 로그인 코드를 입력해 주세요.")}</p>
           <button type="submit" disabled={busy || !code} className={`mt-3 flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] bg-kakao px-5 text-[16px] font-extrabold text-ink transition-[opacity,scale] active:scale-[0.98] disabled:opacity-40 ${focusStyle}`}>
             {busy ? "확인 중…" : <>로그인 <ArrowRight className="size-5" aria-hidden="true" /></>}
           </button>
@@ -59,7 +59,7 @@ export default function Login({ onLogin }: { onLogin: (supervisor: Supervisor, s
       </section>
 
       <p className="rise px-6 pb-[max(20px,env(safe-area-inset-bottom))] text-center text-[12px] leading-[1.8] text-white/55 [@media(max-height:700px)]:hidden" style={{ "--d": "260ms" } as React.CSSProperties}>
-        서버 로그인에 연결돼요.
+        회사에서 받은 로그인 코드(영문+숫자 8자 이상)를 입력해요.
       </p>
     </main>
   );

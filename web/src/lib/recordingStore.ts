@@ -1,182 +1,163 @@
-import type { DriveSession, RecordingReview, StoredRecording, SupervisorId } from "@/types/report";
+import type { DriveSession, PendingRecording, RecordingAnalysis, RecordingEntry, RecordingLocation, RecordingReview, StructuredFieldKey, SupervisorId } from "@/types/report";
+import { FIELD_CONFIG, keyForLabel, labelForKey } from "./recordingPresentation";
+import {
+  createDrive, deleteIssueForever, fetchIssueAudio, finishDrive, listDrives, listIssues, listReviews, patchIssue, putReview, restoreIssue, trashIssue, uploadRecording,
+  type ServerDrive, type ServerExtraction, type ServerIssue, type ServerLocation, type ServerRecordingResult, type ServerReview,
+} from "./serverApi";
 
-// TODO(backend): 아래 보관 함수는 모두 브라우저 IndexedDB 전용이며 서버 송수신이 없다.
-// 실제 연동 시 기존 원본을 지우지 말고 서버 저장소와의 이전·동기화 방식을 정한다.
-// supervisorId는 화면 필터일 뿐 접근 통제가 아니다. 서버는 로그인 세션으로 소유권을 검증해야 한다.
-const DB_NAME = "p3-supervisor-recordings";
-const STORE = "recordings";
+// 모든 기록은 서버(/api)에 저장한다. 서버가 로그인한 사람의 기록만 돌려주므로 supervisorId 로 거르지 않는다.
 
-function openStore(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 2);
-    let blocked = false;
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: "id" });
-        store.createIndex("supervisorId", "supervisorId");
-      }
-      if (!db.objectStoreNames.contains("sessions")) {
-        const sessions = db.createObjectStore("sessions", { keyPath: "id" });
-        sessions.createIndex("supervisorId", "supervisorId");
-      }
-      if (!db.objectStoreNames.contains("reviews")) {
-        db.createObjectStore("reviews", { keyPath: "id" });
-      }
+const FIELD_KEYS = Object.keys(FIELD_CONFIG) as StructuredFieldKey[];
+
+function toSession(drive: ServerDrive): DriveSession {
+  return { id: drive.id, supervisorId: drive.operator_id, number: drive.number, startedAt: drive.started_at, endedAt: drive.ended_at };
+}
+
+/** 서버 시각에 시간대 표시가 없으면 UTC 로 본다. */
+function utc(value: string) {
+  return /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`;
+}
+
+function toLocation(location: ServerLocation | null | undefined): RecordingLocation | undefined {
+  if (!location) return undefined;
+  const requestedAt = location.requested_at ? utc(location.requested_at) : "";
+  if (location.status === "available" && location.latitude != null && location.longitude != null) {
+    return {
+      status: "available", requestedAt, latitude: location.latitude, longitude: location.longitude,
+      accuracy: location.accuracy_m ?? 0, capturedAt: location.captured_at ? utc(location.captured_at) : requestedAt,
     };
-    request.onsuccess = () => {
-      if (blocked) { request.result.close(); return; }
-      request.result.onversionchange = () => request.result.close();
-      resolve(request.result);
-    };
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => {
-      blocked = true;
-      reject(new Error("다른 창에서 보관함을 사용 중이에요."));
-    };
+  }
+  return { status: location.status === "available" ? "unavailable" : location.status, requestedAt };
+}
+
+function toServerLocation(location: RecordingLocation | undefined): ServerLocation | undefined {
+  if (!location) return undefined;
+  if (location.status === "available") {
+    return { status: "available", latitude: location.latitude, longitude: location.longitude, accuracy_m: location.accuracy, requested_at: location.requestedAt, captured_at: location.capturedAt };
+  }
+  return { status: location.status, requested_at: location.requestedAt };
+}
+
+function toAnalysis(extraction: ServerExtraction | null | undefined): RecordingAnalysis {
+  const fields: RecordingAnalysis["fields"] = {};
+  const needsReview: StructuredFieldKey[] = [];
+  for (const key of FIELD_KEYS) {
+    const classified = extraction?.[FIELD_CONFIG[key].serverField as keyof ServerExtraction] as { value?: string | null; needs_review?: boolean } | undefined;
+    const label = labelForKey(key, classified?.value);
+    if (label) fields[key] = label;
+    if (classified?.needs_review) needsReview.push(key);
+  }
+  return {
+    fields, needsReview,
+    cause: extraction?.cause?.value ?? null,
+    place: extraction?.location?.value ?? null,
+    mentionedTime: extraction?.mentioned_time?.value ?? null,
+    estimatedAt: extraction?.mentioned_time_resolved?.estimated_at ? utc(extraction.mentioned_time_resolved.estimated_at) : null,
+  };
+}
+
+function toReview(review: ServerReview): RecordingReview {
+  return {
+    id: review.recording_id, title: review.title, status: review.status, note: review.note,
+    fields: review.fields as RecordingReview["fields"],
+    otherFields: review.other_fields.filter((key): key is StructuredFieldKey => FIELD_KEYS.includes(key as StructuredFieldKey)),
+    otherFieldValues: review.other_field_values as RecordingReview["otherFieldValues"],
+  };
+}
+
+function toEntry(issue: ServerIssue, review: ServerReview | undefined): RecordingEntry {
+  const errors = issue.pipeline_meta?.errors ? Object.keys(issue.pipeline_meta.errors) : [];
+  return {
+    id: issue.recording_id,
+    issueId: issue.id,
+    supervisorId: issue.operator_id,
+    recordedAt: utc(issue.recorded_at),
+    durationSec: issue.duration_sec ?? 0,
+    sessionId: issue.drive_session_id ?? undefined,
+    location: toLocation(issue.location),
+    startTrigger: issue.start_trigger === "intervention" ? "intervention" : issue.start_trigger === "button" ? "button" : undefined,
+    transcript: issue.transcript?.corrected_text ?? "",
+    analysis: toAnalysis(issue.final_extraction ?? issue.ai_extraction),
+    issueStatus: issue.status,
+    pipelineErrors: errors,
+    cancelDecision: issue.pipeline_meta?.cancel_intent?.decision,
+    trashedAt: issue.trashed_at ? utc(issue.trashed_at) : undefined,
+    review: review ? toReview(review) : undefined,
+  };
+}
+
+export async function getSessions(signal?: AbortSignal): Promise<DriveSession[]> {
+  const drives = await listDrives(signal);
+  return drives.map(toSession).sort((a, b) => b.number - a.number);
+}
+
+/** 서버가 진행 중인 운행이 있으면 그 운행을 돌려준다. 여러 기기에서 눌러도 하나만 생긴다. */
+export async function startSession(): Promise<DriveSession> {
+  return toSession(await createDrive());
+}
+
+/** keepalive 는 화면을 떠나는 순간에도 요청이 끝까지 가도록 한다. */
+export async function endSession(id: string, keepalive = false): Promise<void> {
+  await finishDrive(id, keepalive);
+}
+
+/** 정상 녹음과 휴지통 녹음, 검토 내용을 함께 읽어 화면용으로 합친다. */
+export async function getRecordings(signal?: AbortSignal): Promise<RecordingEntry[]> {
+  const [active, trashed, reviews] = await Promise.all([listIssues(false, signal), listIssues(true, signal), listReviews(signal)]);
+  const byRecording = new Map(reviews.map(review => [review.recording_id, review]));
+  return [...active, ...trashed]
+    .map(issue => toEntry(issue, byRecording.get(issue.recording_id)))
+    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+}
+
+/** 녹음을 서버에 올린다. 서버가 받아쓰기·정리·분류까지 끝내고 응답한다. */
+export async function saveRecording(recording: PendingRecording): Promise<ServerRecordingResult> {
+  return uploadRecording({
+    audio: recording.audio,
+    recordedAt: recording.recordedAt,
+    durationSec: recording.durationSec,
+    driveSessionId: recording.sessionId,
+    startTrigger: recording.startTrigger,
+    location: toServerLocation(recording.location),
   });
 }
 
-/** 같은 ID의 재시도만 허용하고, 기존 녹음은 덮어쓰지 않는다. */
-export async function saveRecording(recording: StoredRecording): Promise<void> {
-  // TODO(backend): 음성 Blob·녹음 ID·회차 ID·녹음 시각·길이·위치 결과를 업로드하고 서버 보관 완료를 확인한다.
-  // 같은 녹음 ID의 재시도는 중복 생성하지 않아야 하며 실패 시 원본과 최초 위치를 유지한다.
-  const db = await openStore();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([STORE, "sessions"], "readwrite");
-      const store = transaction.objectStore(STORE);
-      const existing = store.get(recording.id);
-      existing.onsuccess = () => {
-        try {
-          if (existing.result) return;
-          if (!recording.sessionId) { store.add(recording); return; }
-          const sessionRequest = transaction.objectStore("sessions").get(recording.sessionId);
-          sessionRequest.onsuccess = () => {
-            const session = sessionRequest.result as DriveSession | undefined;
-            if (!session || session.endedAt || session.supervisorId !== recording.supervisorId) {
-              transaction.abort();
-              return;
-            }
-            try { store.add(recording); } catch { transaction.abort(); }
-          };
-        } catch {
-          transaction.abort();
-        }
-      };
-      transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error ?? new Error("녹음 보관 실패"));
-      transaction.onerror = () => reject(transaction.error ?? new Error("녹음 보관 실패"));
-    });
-  } finally { db.close(); }
+/**
+ * 검토 내용을 저장하고, 정리 항목은 이슈의 최종 값에도 반영한다.
+ * 검토 완료로 바꾸면 이슈를 확정(confirm)한다. 원본 음성과 AI 결과는 서버가 따로 보존한다.
+ */
+export async function saveReview(recording: RecordingEntry, review: RecordingReview): Promise<void> {
+  if (recording.trashedAt) return;
+  const status = review.status === "trashed" ? "new" : review.status;
+  await putReview(recording.id, {
+    title: review.title, status, note: review.note,
+    fields: Object.fromEntries(Object.entries(review.fields).filter(([, value]) => typeof value === "string")) as Record<string, string>,
+    other_fields: review.otherFields ?? [],
+    other_field_values: Object.fromEntries(Object.entries(review.otherFieldValues ?? {}).filter(([, value]) => typeof value === "string")) as Record<string, string>,
+  });
+  const patch: Record<string, unknown> = {};
+  // 사람이 AI 값과 다르게 고친 항목만 보낸다. 그대로 둔 항목까지 보내면 AI 정확도 비교가 흐려진다.
+  for (const key of FIELD_KEYS) {
+    if (review.fields[key] === recording.analysis.fields[key]) continue;
+    const serverKey = keyForLabel(key, review.fields[key]);
+    if (serverKey) patch[FIELD_CONFIG[key].serverField] = serverKey;
+  }
+  const confirm = status === "reviewed" && recording.issueStatus !== "confirmed";
+  if (Object.keys(patch).length || confirm) await patchIssue(recording.issueId, { ...patch, confirm });
 }
 
-export async function getSessions(supervisorId: SupervisorId): Promise<DriveSession[]> {
-  // TODO(backend): 현재 감독관의 회차 목록과 진행 중 회차를 서버에서 조회한다.
-  const db = await openStore();
-  try {
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction("sessions", "readonly");
-      const req = tx.objectStore("sessions").index("supervisorId").getAll(supervisorId);
-      tx.oncomplete = () => resolve((req.result as DriveSession[]).sort((a, b) => b.number - a.number));
-      tx.onabort = tx.onerror = () => reject(tx.error);
-    });
-  } finally { db.close(); }
+export async function trashRecording(recording: RecordingEntry) { await trashIssue(recording.issueId); }
+export async function restoreRecording(recording: RecordingEntry) { await restoreIssue(recording.issueId); }
+export async function deleteRecordingForever(recording: RecordingEntry) { await deleteIssueForever(recording.issueId); }
+export function loadRecordingAudio(recording: RecordingEntry, signal?: AbortSignal) { return fetchIssueAudio(recording.issueId, signal); }
+
+/** 서버 응답을 보고 녹음이 어떻게 처리됐는지 안내 문구를 만든다. */
+export function uploadOutcome(result: ServerRecordingResult): "trashed" | "review" | "error" | "ok" {
+  const cancel = result.pipeline_meta?.cancel_intent;
+  if (cancel?.trashed) return "trashed";
+  if (cancel?.decision === "review") return "review";
+  if (result.status === "error") return "error";
+  return "ok";
 }
 
-/** 같은 처리 안에서 기존 운행을 확인해 중복 시작을 막는다. */
-export async function startSession(supervisorId: SupervisorId): Promise<DriveSession> {
-  // TODO(backend): 운행 시작을 서버로 전송하고 확정된 회차 ID·번호·시각을 받는다. 여러 기기의 중복 시작도 서버에서 방지한다.
-  const db = await openStore();
-  try {
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction("sessions", "readwrite");
-      const store = tx.objectStore("sessions");
-      const req = store.index("supervisorId").getAll(supervisorId);
-      let result: DriveSession;
-      req.onsuccess = () => {
-        const sessions = req.result as DriveSession[];
-        const active = sessions.find(s => !s.endedAt);
-        if (active) { result = active; return; }
-        result = { id: crypto.randomUUID(), supervisorId, number: Math.max(0, ...sessions.map(s => s.number)) + 1, startedAt: new Date().toISOString(), endedAt: null };
-        try { store.add(result); } catch { tx.abort(); }
-      };
-      tx.oncomplete = () => resolve(result);
-      tx.onabort = tx.onerror = () => reject(tx.error ?? new Error("운행 시작 실패"));
-    });
-  } finally { db.close(); }
-}
-
-export async function endSession(id: string, supervisorId: SupervisorId): Promise<void> {
-  // TODO(backend): 회차 종료를 서버로 전송하고 소유권·진행 상태를 검증한 완료 응답을 기다린다. 종료 재시도도 안전해야 한다.
-  const db = await openStore();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("sessions", "readwrite");
-      const store = tx.objectStore("sessions");
-      const req = store.get(id);
-      req.onsuccess = () => {
-        const session = req.result as DriveSession | undefined;
-        if (!session || session.supervisorId !== supervisorId) { tx.abort(); return; }
-        if (!session.endedAt) {
-          try { store.put({ ...session, endedAt: new Date().toISOString() }); } catch { tx.abort(); }
-        }
-      };
-      tx.oncomplete = () => resolve();
-      tx.onabort = tx.onerror = () => reject(tx.error ?? new Error("운행 종료 실패"));
-    });
-  } finally { db.close(); }
-}
-
-export async function getReviews(): Promise<RecordingReview[]> {
-  // TODO(backend): 현재 사용자가 접근할 수 있는 녹음의 검토 내용만 서버에서 조회한다. 현재는 로컬 전체 검토를 읽는다.
-  const db = await openStore();
-  try {
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction("reviews", "readonly");
-      const req = tx.objectStore("reviews").getAll();
-      tx.oncomplete = () => resolve(req.result);
-      tx.onabort = tx.onerror = () => reject(tx.error);
-    });
-  } finally { db.close(); }
-}
-
-/** 음성 원본을 변경하지 않고, 선택한 감독관의 검토 내용만 보관한다. */
-export async function saveReview(review: RecordingReview, supervisorId: SupervisorId): Promise<void> {
-  // TODO(backend): 녹음 ID와 제목·상태·정리 항목·기타 선택·메모를 서버에 저장하고 성공 응답을 기다린다.
-  // 기타 입력 보관용 otherFieldValues도 송수신한다. 현재 선택 값(fields)과 구분해 목록·검색에는 선택 값만 사용한다.
-  // 원본·자동 분석 결과는 보존하고, 다른 기기의 동시 수정 충돌도 구분한다.
-  const db = await openStore();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([STORE, "reviews"], "readwrite");
-      const req = tx.objectStore(STORE).get(review.id);
-      req.onsuccess = () => {
-        if (req.result?.supervisorId !== supervisorId) { tx.abort(); return; }
-        try { tx.objectStore("reviews").put(review); } catch { tx.abort(); }
-      };
-      tx.oncomplete = () => resolve();
-      tx.onabort = tx.onerror = () => reject(tx.error ?? new Error("검토 보관 실패"));
-    });
-  } finally { db.close(); }
-}
-
-
-
-/** 다음 단계의 목록·상세 화면에서 사용할 읽기 기능. */
-export async function getRecordings(supervisorId: SupervisorId): Promise<StoredRecording[]> {
-  // TODO(backend): 녹음 목록·상세·위치·분석 처리 상태를 서버에서 조회하고 음성은 접근 권한이 있는 재생 경로로 받는다.
-  // 현재 audio: Blob을 전제로 하므로 응답 자료형·RecordingPlayer·useRecordingData의 원본 참조 유지도 함께 조정한다.
-  const db = await openStore();
-  try {
-    return await new Promise<StoredRecording[]>((resolve, reject) => {
-      const transaction = db.transaction(STORE, "readonly");
-      const request = transaction.objectStore(STORE).index("supervisorId").getAll(supervisorId);
-      transaction.oncomplete = () => resolve(
-        (request.result as StoredRecording[]).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)),
-      );
-      transaction.onabort = () => reject(transaction.error);
-      transaction.onerror = () => reject(transaction.error);
-    });
-  } finally { db.close(); }
-}
+export type { SupervisorId };

@@ -46,19 +46,51 @@ export type RecordingLocation = { requestedAt: string } & (
  */
 export type RecordingStartTrigger = "button" | "intervention";
 
-/** 재생용 URL 대신 녹음 원본 자체를 보관한다. */
+/** 서버가 정리한 결과 중 화면에 보여 주는 값 */
+export type RecordingAnalysis = {
+  /** 장소·이전 동작·대상 유형·반응. 값은 화면 표시용 한국어 이름이다. */
+  fields: Partial<Record<StructuredFieldKey, string>>;
+  /** 확신이 낮아 확인이 필요한 항목 */
+  needsReview: StructuredFieldKey[];
+  cause: string | null;
+  place: string | null;
+  mentionedTime: string | null;
+  /** "30초 전" 같은 말을 녹음 시각 기준으로 바꾼 추정 시각 */
+  estimatedAt: string | null;
+};
+
+/** 서버에 보관된 녹음 1건 (= 이슈 1건) */
 export type StoredRecording = {
+  /** 녹음 ID. 검토 저장과 화면 주소에 쓴다. */
   id: string;
+  /** 이슈 ID. 휴지통·음성·정리 결과 수정에 쓴다. */
+  issueId: string;
   supervisorId: SupervisorId;
   recordedAt: string;
   durationSec: number;
-  audio: Blob;
-  /** 기존 녹음에는 없으며, 회차를 임의 배정하지 않는다. */
   sessionId?: string;
-  /** 이전 녹음에는 위치가 없다. 상세를 열 때 현재 위치로 덮어쓰지 않는다. */
   location?: RecordingLocation;
-  /** 녹음 시작 방식. 이전 녹음에는 없으며, 없으면 "기록 없음"으로 표시한다. */
   startTrigger?: RecordingStartTrigger;
+  /** 받아쓴 글 (용어 보정 후) */
+  transcript: string;
+  analysis: RecordingAnalysis;
+  issueStatus: "draft" | "confirmed" | "error";
+  /** 서버 처리 중 실패한 단계 (받아쓰기·정리·분류) */
+  pipelineErrors: string[];
+  /** 음성 취소 판단 결과. review 면 사람이 확인해야 한다. */
+  cancelDecision?: "trash" | "review" | "keep" | "skipped";
+  trashedAt?: string;
+};
+
+/** 서버에 올리기 전, 방금 녹음한 원본 */
+export type PendingRecording = {
+  supervisorId: SupervisorId;
+  audio: Blob;
+  recordedAt: string;
+  durationSec: number;
+  sessionId: string;
+  location?: RecordingLocation;
+  startTrigger: RecordingStartTrigger;
 };
 
 /** 녹음 한 개 (재생용 URL + 녹음 길이) */

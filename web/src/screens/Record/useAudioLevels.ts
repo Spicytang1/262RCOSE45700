@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import type { MicVAD } from "@ricky0123/vad-web";
 
 const BAR_COUNT = 40;
@@ -10,10 +10,15 @@ const SPEECH_LOW_HZ = 180;
 const SPEECH_HIGH_HZ = 3400;
 const SPEECH_PROBABILITY = 0.5;
 
-export default function useAudioLevels(stream: MediaStream | null): { levels: number[]; quietMs: number; startingSilentMs: number } {
+/**
+ * ignoreRef 가 true 인 동안(앱이 음성 안내를 읽는 중)은 들리는 소리를 목소리로 보지 않는다.
+ * 스피커 안내가 마이크로 들어가 "말을 시작했다"고 잘못 판단하는 것을 막는다.
+ */
+export default function useAudioLevels(stream: MediaStream | null, ignoreRef?: RefObject<boolean>): { levels: number[]; quietMs: number; startingSilentMs: number; vadFailed: boolean } {
   const [levels, setLevels] = useState<number[]>(EMPTY_LEVELS);
   const [quietMs, setQuietMs] = useState(0);
   const [startingSilentMs, setStartingSilentMs] = useState(0);
+  const [vadFailed, setVadFailed] = useState(false);
 
   useEffect(() => {
     if (!stream) return;
@@ -56,7 +61,7 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
       pauseStream: async () => { },
       resumeStream: async (resumed) => resumed,
       onFrameProcessed: (probabilities) => {
-        if (probabilities.isSpeech >= SPEECH_PROBABILITY) {
+        if (probabilities.isSpeech >= SPEECH_PROBABILITY && !ignoreRef?.current) {
           heard = true;
           quiet = 0;
           startingSilent = 0;
@@ -73,7 +78,7 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
       if (cancelled) { await instance.destroy(); return; }
       vad = instance;
       await instance.start();
-    }).catch(() => { });
+    }).catch(() => { if (!cancelled) setVadFailed(true); });
 
     return () => {
       cancelled = true;
@@ -82,7 +87,7 @@ export default function useAudioLevels(stream: MediaStream | null): { levels: nu
       source.disconnect();
       void audioContext.close();
     };
-  }, [stream]);
+  }, [stream, ignoreRef]);
 
-  return { levels, quietMs, startingSilentMs };
+  return { levels, quietMs, startingSilentMs, vadFailed };
 }

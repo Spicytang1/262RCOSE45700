@@ -4,7 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 
 // pnpm은 하위 의존성(onnxruntime-web)을 web/node_modules 바로 아래에 두지 않는다.
 // 경로를 고정하지 않고 vad-web이 실제로 쓰는 패키지 위치에서 찾는다. (npm·pnpm 모두 동작)
@@ -42,13 +42,23 @@ function serveVadAssets(): Plugin {
   }
 }
 
+// 개발 서버에서 /api 요청을 넘길 백엔드 주소. 배포(Vercel)에서는 vercel.json 의 rewrites 가 같은 일을 한다.
+const DEFAULT_API_TARGET = 'http://44.223.98.215:8000'
+
 // https://vite.dev/config/
-export default defineConfig({
-  server: { host: '0.0.0.0', port: 5173, strictPort: true, allowedHosts: true },
-  plugins: [react(), tailwindcss(), serveVadAssets()],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiTarget = env.API_PROXY_TARGET || DEFAULT_API_TARGET
+  return {
+    server: {
+      host: '0.0.0.0', port: 5173, strictPort: true, allowedHosts: true,
+      proxy: { '/api': { target: apiTarget, changeOrigin: true } },
     },
-  },
+    plugins: [react(), tailwindcss(), serveVadAssets()],
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+    },
+  }
 })

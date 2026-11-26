@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, MapPin, Pencil, RotateCcw, Route, Timer, Trash2, UserRound } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, MapPin, Pencil, RotateCcw, Route, Timer, Trash2, UserRound, XCircle } from "lucide-react";
 import Button from "@/components/Button";
 import OptionMenu from "@/components/OptionMenu";
-import { dateText, DEMO_TRANSCRIPT, DEMO_VEHICLE_DATA, FIELD_CONFIG, focusStyle, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
+import { dateText, DEMO_VEHICLE_DATA, FIELD_CONFIG, focusStyle, locationText, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
+import { deleteRecordingForever, loadRecordingAudio, restoreRecording, trashRecording } from "@/lib/recordingStore";
 import useReviewAutosave from "@/lib/useReviewAutosave";
 import { formatTime } from "@/lib/formatTime";
 import type { DriveSession, RecordingEntry, RecordingStatus, StructuredFieldKey } from "@/types/report";
@@ -33,6 +34,11 @@ const rise = (delay: number) => ({ "--d": `${delay}ms` }) as React.CSSProperties
 export default function RecordingDetail({ supervisorName, recording, session, position, total, previousId, nextId, onOpen, onBack, onSaved }: Props) {
   const { draft, phase, change, flush, leave } = useReviewAutosave(recording, onSaved);
   const [menu, setMenu] = useState<{ key: StructuredFieldKey; placement: "up" | "down"; maxHeight: number } | null>(null);
+  const [trashBusy, setTrashBusy] = useState(false);
+  const [trashError, setTrashError] = useState("");
+  const isTrashed = !!recording.trashedAt;
+  const analysis = recording.analysis;
+  const startLabel = recording.startTrigger === "intervention" ? "수동 개입" : recording.startTrigger === "button" ? "직접 녹음" : "기록 없음";
 
   const control = `w-full rounded-button border border-line bg-white px-4 py-3.5 text-[16px] font-semibold placeholder:font-medium placeholder:text-ink-muted ${focusStyle}`;
   const sessionLabel = session ? `${session.number}회차` : "회차 없음";
@@ -40,7 +46,8 @@ export default function RecordingDetail({ supervisorName, recording, session, po
   const hasCustomTitle = draft.title.trim().length > 0;
   const suggestedTitle = TITLE_SUGGESTION_KEYS.map(key => draft.fields[key]?.trim()).filter(Boolean).join(" ");
   const fieldEntries = Object.entries(FIELD_CONFIG) as [StructuredFieldKey, (typeof FIELD_CONFIG)[StructuredFieldKey]][];
-  const otherKeys = fieldEntries.filter(([key, config]) => draft.otherFields?.includes(key) || !config.options.includes(draft.fields[key] ?? ""));
+  // 빈 값은 "미입력"이다. 기타를 직접 고른 항목이나 보기 밖의 값만 기타 입력란을 연다.
+  const otherKeys = fieldEntries.filter(([key, config]) => draft.otherFields?.includes(key) || (!!draft.fields[key] && !config.options.includes(draft.fields[key] ?? "")));
 
   function openMenu(trigger: HTMLElement, key: StructuredFieldKey, count: number) {
     const rect = trigger.getBoundingClientRect();
@@ -59,7 +66,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
   function pickOption(key: StructuredFieldKey, options: readonly string[], selection: string) {
     change(current => {
       const previous = current.fields[key] ?? "";
-      const wasOther = current.otherFields?.includes(key) || !options.includes(previous);
+      const wasOther = current.otherFields?.includes(key) || (!!previous && !options.includes(previous));
       // 이전 형식의 기타 값도 첫 전환 시 보존한다. 빈 문자열은 사용자가 지운 값이므로 그대로 유지한다.
       const otherFieldValues = { ...current.otherFieldValues, ...(wasOther ? { [key]: previous } : {}) };
       return {
@@ -72,26 +79,28 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     closeMenu(key);
   }
 
+  /** 휴지통은 서버 이슈에 기록한다. 넣기 전에 마지막 입력을 먼저 저장한다. */
   async function moveToTrash() {
-    if (draft.status === "trashed") {
-      if (!window.confirm("이 녹음을 휴지통에서 복구할까요?")) return;
-      const status = draft.previousStatusBeforeTrash ?? "new";
-      change(current => ({ ...current, status, previousStatusBeforeTrash: undefined, trashedAt: undefined }));
-      await flush();
-      return;
-    }
-    if (!window.confirm("이 녹음을 휴지통에 넣을까요?")) return;
-    change(current => {
-      const previousStatus = current.status === "trashed"
-        ? current.previousStatusBeforeTrash ?? "new"
-        : current.status;
-      return { ...current, previousStatusBeforeTrash: previousStatus, status: "trashed", trashedAt: new Date().toISOString() };
-    });
-    await flush();
+    if (trashBusy) return;
+    if (!window.confirm(isTrashed ? "이 녹음을 휴지통에서 복구할까요?" : "이 녹음을 휴지통에 넣을까요?")) return;
+    setTrashBusy(true); setTrashError("");
+    try {
+      if (isTrashed) await restoreRecording(recording);
+      else { if (!await flush()) throw new Error("save"); await trashRecording(recording); }
+      onSaved();
+    } catch { setTrashError(isTrashed ? "휴지통에서 복구하지 못했어요. 다시 시도해 주세요." : "휴지통에 넣지 못했어요. 다시 시도해 주세요."); }
+    finally { setTrashBusy(false); }
   }
 
-  const isTrashed = draft.status === "trashed";
-  const previousStatus = draft.previousStatusBeforeTrash ?? "new";
+  async function deleteForever() {
+    if (trashBusy || !isTrashed) return;
+    if (!window.confirm("이 녹음을 영구 삭제할까요? 원본 음성까지 지워지고 되돌릴 수 없어요.")) return;
+    setTrashBusy(true); setTrashError("");
+    try { await deleteRecordingForever(recording); onSaved(); onBack(); }
+    catch { setTrashError("영구 삭제하지 못했어요. 다시 시도해 주세요."); setTrashBusy(false); }
+  }
+
+  const previousStatus = draft.status === "trashed" ? "new" : draft.status;
 
   return <RecordingFrame tone="white">
     <div className="sticky top-0 z-10 border-b border-line bg-white/90 backdrop-blur">
@@ -111,9 +120,12 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     <section className="rise border-b-2 border-line bg-surface px-5 pt-6 pb-5" style={rise(0)}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-[16px] font-bold text-ink-sub tabular-nums" data-start-trigger={recording.startTrigger ?? "none"}>{dateText(recording.recordedAt)} {timeText(recording.recordedAt)}</p>
-        <button type="button" onClick={() => void moveToTrash()} aria-label={draft.status === "trashed" ? "휴지통에서 복구" : "휴지통에 넣기"} title={draft.status === "trashed" ? "휴지통에서 복구" : "휴지통에 넣기"} className={`flex size-11 shrink-0 items-center justify-center rounded-[10px] border border-line bg-white text-danger-ink transition-colors active:bg-surface ${focusStyle}`}>
-          {draft.status === "trashed" ? <RotateCcw className="size-5" strokeWidth={2} aria-hidden="true" /> : <Trash2 className="size-5" strokeWidth={2} aria-hidden="true" />}
-        </button>
+        <div className="flex shrink-0 gap-2">
+          {isTrashed && <button type="button" onClick={() => void deleteForever()} disabled={trashBusy} aria-label="영구 삭제" title="영구 삭제" className={`flex size-11 items-center justify-center rounded-[10px] border border-line bg-white text-danger-ink transition-colors active:bg-surface disabled:opacity-40 ${focusStyle}`}><XCircle className="size-5" strokeWidth={2} aria-hidden="true" /></button>}
+          <button type="button" onClick={() => void moveToTrash()} disabled={trashBusy} aria-label={isTrashed ? "휴지통에서 복구" : "휴지통에 넣기"} title={isTrashed ? "휴지통에서 복구" : "휴지통에 넣기"} className={`flex size-11 items-center justify-center rounded-[10px] border border-line bg-white text-danger-ink transition-colors active:bg-surface disabled:opacity-40 ${focusStyle}`}>
+            {isTrashed ? <RotateCcw className="size-5" strokeWidth={2} aria-hidden="true" /> : <Trash2 className="size-5" strokeWidth={2} aria-hidden="true" />}
+          </button>
+        </div>
       </div>
       <label htmlFor="recording-title" className="sr-only">녹음 제목</label>
       <div className="mt-1 flex items-start gap-2 border-b-2 border-ink/15 pb-2 transition-colors duration-200 focus-within:border-ink">
@@ -122,12 +134,16 @@ export default function RecordingDetail({ supervisorName, recording, session, po
       </div>
       {!hasCustomTitle && suggestedTitle && <button type="button" onClick={() => change(current => ({ ...current, title: suggestedTitle }))} className={`fade-in mt-3 flex min-h-11 items-center gap-2 rounded-button border border-line bg-white px-3.5 text-left text-[14px] transition-[background-color,scale] duration-150 active:scale-[0.98] active:bg-surface ${focusStyle}`}><span className="shrink-0 font-semibold text-ink-muted">이슈 제목 제안</span><span className="min-w-0 truncate font-extrabold">{suggestedTitle}</span></button>}
       <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] text-ink-sub">
-        {/* TODO(backend): 녹음 좌표를 주소로 변환한 응답으로 교체한다. XX동 XX로는 표시용 임시 주소이며 원본에 저장하지 않는다. */}
-        <li title="임시 주소예요. 실제 위치와 연결되지 않았어요." aria-label="주소 XX동 XX로 (임시 주소)" className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />XX동 XX로</li>
+        <li aria-label={`녹음 위치 ${locationText(recording)}`} className="flex items-center gap-1.5 tabular-nums"><MapPin className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />{locationText(recording)}</li>
         <li aria-label={`녹음 길이 ${formatTime(recording.durationSec)}`} className="flex items-center gap-1.5 tabular-nums"><Timer className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />{formatTime(recording.durationSec)}</li>
         <li aria-label={`운행 ${sessionLabel}`} className="flex items-center gap-1.5"><Route className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />{sessionLabel}</li>
+        <li aria-label={`녹음 시작 ${startLabel}`} className="flex items-center gap-1.5">{startLabel}</li>
         <li aria-label={`감독관 ${supervisorName}`} className="flex min-w-0 items-center gap-1.5"><UserRound className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" /><span className="truncate">{supervisorName}</span></li>
       </ul>
+      {trashError && <p role="alert" className="mt-3 text-[13px] text-danger-ink">{trashError}</p>}
+      {isTrashed && <p className="mt-3 flex items-start gap-2 rounded-[10px] bg-danger-soft px-3 py-2.5 text-[13px] text-danger-ink"><Trash2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{recording.cancelDecision === "trash" ? "음성 취소 요청으로 휴지통에 들어간 녹음이에요." : "휴지통에 있는 녹음이에요."} 복구하면 다시 고칠 수 있어요.</p>}
+      {!isTrashed && recording.cancelDecision === "review" && <p className="mt-3 flex items-start gap-2 rounded-[10px] bg-warning-soft px-3 py-2.5 text-[13px] text-warning-ink"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />취소 요청일 수도 있어요. 들어 보고 필요 없으면 휴지통에 넣어 주세요.</p>}
+      {recording.pipelineErrors.length > 0 && <p className="mt-3 flex items-start gap-2 rounded-[10px] bg-warning-soft px-3 py-2.5 text-[13px] text-warning-ink"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />자동 정리 중 일부가 실패했어요. 녹음을 듣고 직접 채워 주세요.</p>}
     </section>
 
     <div className="flex flex-col gap-9 px-5 pt-8 pb-8">
@@ -142,23 +158,23 @@ export default function RecordingDetail({ supervisorName, recording, session, po
       </fieldset>
 
       <section className={`rise relative ${menu ? "z-30" : ""}`} style={rise(110)}>
-        <h2 className="mb-2 flex items-center gap-2 text-[15px] font-extrabold">정리 항목<span className="rounded-full bg-kakao-soft px-2.5 py-0.5 text-[12px] font-bold">시연용 예시</span></h2>
+        <h2 className="mb-2 flex items-center gap-2 text-[15px] font-extrabold">정리 항목{draft.status !== "reviewed" && <span className="rounded-full bg-kakao-soft px-2.5 py-0.5 text-[12px] font-bold">AI 자동 정리 · 확인 필요</span>}</h2>
         <fieldset>
           <legend className="sr-only">정리 항목 선택</legend>
           <div className="divide-y divide-line border-y border-line">
             {fieldEntries.map(([key, config]) => {
               const value = draft.fields[key] ?? "";
-              const isOther = draft.otherFields?.includes(key) || !config.options.includes(value);
+              const isOther = draft.otherFields?.includes(key) || (!!value && !config.options.includes(value));
               return <div key={key} className="relative flex min-h-16 items-center justify-between gap-3 py-3 transition-colors duration-150 active:bg-surface">
                 <div className="min-w-0">
-                  <span className="block text-[14px] font-bold">{config.label}</span>
-                  <p id={`hint-${key}`} className="sr-only">{config.description}{key === "previousAction" ? " · 차량 데이터 수집을 가정한 예시" : ""}</p>
+                  <span className="flex items-center gap-1.5 text-[14px] font-bold">{config.label}{analysis.needsReview.includes(key) && draft.status !== "reviewed" && <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-bold text-warning-ink">확인 필요</span>}</span>
+                  <p id={`hint-${key}`} className="sr-only">{config.description}</p>
                 </div>
                 <p className="flex shrink-0 items-center gap-1 text-[18px] font-extrabold tracking-tight">
-                  <span key={isOther ? "other" : value} className="fade-in max-w-[9em] break-words text-right">{isOther ? (value || "기타") : value}</span>
+                  <span key={isOther ? "other" : value} className="fade-in max-w-[9em] break-words text-right">{isOther ? (value || "기타") : (value || "미입력")}</span>
                   <ChevronDown className={`size-4 shrink-0 text-ink-muted transition-transform duration-150 ${menu?.key === key ? "rotate-180" : ""}`} strokeWidth={2} aria-hidden="true" />
                 </p>
-                <button type="button" id={`field-button-${key}`} aria-haspopup="menu" aria-expanded={menu?.key === key} aria-label={`${config.label} ${isOther ? (value || "기타") : value}, 변경`} aria-describedby={`hint-${key}`} onClick={event => menu?.key === key ? closeMenu(key) : openMenu(event.currentTarget, key, config.options.length + 1)} className="absolute inset-0 size-full cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink" />
+                <button type="button" id={`field-button-${key}`} aria-haspopup="menu" aria-expanded={menu?.key === key} aria-label={`${config.label} ${isOther ? (value || "기타") : (value || "미입력")}, 변경`} aria-describedby={`hint-${key}`} onClick={event => menu?.key === key ? closeMenu(key) : openMenu(event.currentTarget, key, config.options.length + 1)} className="absolute inset-0 size-full cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink" />
                 {menu?.key === key && <OptionMenu label={config.label} options={[...config.options.map(option => ({ value: option, label: option })), { value: "__other__", label: "기타 (직접 입력)" }]} value={isOther ? "__other__" : value} placement={menu.placement} maxHeight={menu.maxHeight} onSelect={selection => pickOption(key, config.options, selection)} onClose={() => closeMenu(key)} />}
               </div>;
             })}
@@ -175,8 +191,14 @@ export default function RecordingDetail({ supervisorName, recording, session, po
       </section>
 
       <div className="rise divide-y divide-line border-y border-line" style={rise(210)}>
-        {/* TODO(backend): DEMO_TRANSCRIPT 대신 녹음별 전사 응답을 표시하고 처리 중·실패·미연결 상태를 구분한다. */}
-        <RecordingFold title="전사" badge="시연용 예시"><p className="text-[15px]">{DEMO_TRANSCRIPT}</p></RecordingFold>
+        <RecordingFold title="전사">
+          <p className="text-[15px] [overflow-wrap:anywhere]">{recording.transcript || "받아쓴 글이 없어요."}</p>
+          {(analysis.cause || analysis.place || analysis.mentionedTime) && <dl className="mt-4 divide-y divide-line border-y border-line text-[13px]">
+            {analysis.cause && <div className="flex justify-between gap-3 py-2.5"><dt className="shrink-0 text-ink-sub">원인</dt><dd className="text-right font-bold">{analysis.cause}</dd></div>}
+            {analysis.place && <div className="flex justify-between gap-3 py-2.5"><dt className="shrink-0 text-ink-sub">말한 장소</dt><dd className="text-right font-bold">{analysis.place}</dd></div>}
+            {analysis.mentionedTime && <div className="flex justify-between gap-3 py-2.5"><dt className="shrink-0 text-ink-sub">말한 시점</dt><dd className="text-right font-bold">{analysis.mentionedTime}{analysis.estimatedAt && <span className="ml-1 font-normal text-ink-sub">(약 {timeText(analysis.estimatedAt)})</span>}</dd></div>}
+          </dl>}
+        </RecordingFold>
         <RecordingLocationMap location={recording.location} />
         <RecordingVideo durationSec={recording.durationSec} />
         {/* TODO(backend): 녹음 시각·회차와 연결된 차량 로그(이전 동작·속도·차선·저크 등)를 서버에서 조회해 표시한다. 기기 위치를 차량 GPS로 대체 사용하지 않는다. */}
@@ -192,7 +214,7 @@ export default function RecordingDetail({ supervisorName, recording, session, po
     </div>
 
     <div className="sticky bottom-0 z-10 -mb-[max(24px,env(safe-area-inset-bottom))] border-t-2 border-ink/15 bg-white shadow-dock px-5 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur">
-      <RecordingPlayer compact audio={recording.audio} durationSec={recording.durationSec} />
+      <RecordingPlayer compact load={signal => loadRecordingAudio(recording, signal)} durationSec={recording.durationSec} />
     </div>
     {menu && <button type="button" tabIndex={-1} aria-hidden="true" onClick={() => closeMenu(menu.key)} className="fixed inset-0 z-20 cursor-default" />}
   </RecordingFrame>;

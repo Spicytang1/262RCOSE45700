@@ -1,5 +1,5 @@
-import { ChevronRight, Mic, Search } from "lucide-react";
-import { dateText, DEMO_ADDRESS, focusStyle, recordingSummary, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
+import { ChevronRight, Mic, Search, Trash2 } from "lucide-react";
+import { dateText, focusStyle, locationText, recordingStatus, recordingSummary, recordingTitle, STATUS_LABEL, timeText } from "@/lib/recordingPresentation";
 import { formatTime } from "@/lib/formatTime";
 import type { DriveSession, RecordingEntry } from "@/types/report";
 import StateView from "@/components/StateView";
@@ -32,6 +32,9 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
     return options.sort === "latest" ? right.number - left.number : left.number - right.number;
   });
   const change = (patch: Partial<ListOptions>) => onOptions({ ...options, ...patch, limit: 30 });
+  // 휴지통은 상태 필터 안에만 있으면 찾기 어려워서 따로 버튼을 둔다. 휴지통은 회차와 관계없이 전부 보여 준다.
+  const trashCount = recordings.filter(record => record.trashedAt).length;
+  const inTrash = options.status === "trashed";
   const control = `min-h-11 rounded-button border border-line bg-white px-3 text-[14px] ${focusStyle}`;
 
   const rise = (delay: number) => ({ "--d": `${delay}ms` }) as React.CSSProperties;
@@ -39,13 +42,18 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
   return <RecordingFrame>
     <RecordingHeader title="녹음 목록" backLabel="홈" onBack={onBack} />
     <div className="flex flex-col gap-3 px-5 pt-4">
-      <p className="rise text-[14px] text-ink-sub [overflow-wrap:anywhere]" style={rise(0)}>{supervisorName}의 녹음이에요. 정차 후 확인해 주세요.</p>
+      <div className="rise flex items-center justify-between gap-3" style={rise(0)}>
+        <p className="text-[14px] text-ink-sub [overflow-wrap:anywhere]">{inTrash ? "휴지통에 넣은 녹음이에요. 열어서 복구하거나 영구 삭제할 수 있어요." : `${supervisorName}의 녹음이에요. 정차 후 확인해 주세요.`}</p>
+        <button type="button" aria-pressed={inTrash} onClick={() => change(inTrash ? { status: "all" } : { status: "trashed", scope: "all" })} className={`flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-bold transition-colors ${focusStyle} ${inTrash ? "border-ink bg-ink text-white" : "border-line bg-white text-ink"}`}>
+          <Trash2 className="size-4" aria-hidden="true" />{inTrash ? "휴지통 닫기" : `휴지통 ${trashCount}`}
+        </button>
+      </div>
       <div role="group" aria-label="녹음 범위" className="rise grid grid-cols-2 gap-1 rounded-button bg-line p-1" style={rise(40)}>
         {([['all', '전체 녹음'], ['session', '이번 회차']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={options.scope === value} onClick={() => change({ scope: value })} className={`min-h-11 rounded-[9px] text-[14px] font-bold transition-[background-color,color,box-shadow] duration-200 ${focusStyle} ${options.scope === value ? "bg-white text-ink shadow-sm" : "text-ink-sub"}`}>{label}</button>)}
       </div>
       <div className="rise" style={rise(80)}>
         <label htmlFor="recording-search" className="sr-only">녹음 검색</label>
-        <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="전사·정리 항목·주소 등으로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
+        <div className="relative"><Search className="absolute top-3.5 left-3 size-5 text-ink-sub" aria-hidden="true" /><input id="recording-search" name="recording-search" type="search" value={options.query} onChange={event => change({ query: event.target.value })} placeholder="전사·정리 항목·메모 등으로 검색" className={`${control} w-full pr-3 pl-10`} /></div>
       </div>
       <div className="rise grid grid-cols-2 gap-3" style={rise(120)}>
         <div><label htmlFor="recording-status" className="sr-only">검토 상태</label><select id="recording-status" value={options.status} onChange={event => change({ status: event.target.value as ListOptions['status'] })} className={`${control} w-full`}><option value="all">전체 상태</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
@@ -59,12 +67,12 @@ export default function RecordingList({ supervisorName, recordings, sessions, cu
           const label = groupSession ? `${groupSession.number}회차` : sessionId ? "회차 정보 없음" : "이전 녹음 (회차 없음)";
           return <section key={sessionId} aria-label={label} className="rise" style={rise(Math.min(groupIndex, 3) * 60)}><h2 className="mb-3 text-[15px] font-extrabold text-ink">{label}</h2><div className="flex flex-col gap-3">{records.map((record, cardIndex) => {
             const session = record.sessionId ? sessionById.get(record.sessionId) : undefined;
-            const status = record.review?.status ?? "new";
+            const status = recordingStatus(record);
             return <button key={record.id} type="button" onClick={() => onOpen(record.id)} style={rise(60 + Math.min(cardIndex, 7) * 45)} className={`rise relative flex w-full flex-col gap-2 rounded-[20px] border border-line bg-white p-4 pr-10 text-left shadow-card transition-[background-color,scale] duration-150 hover:border-ink-sub active:scale-[0.99] active:bg-kakao-soft ${focusStyle}`}>
               <span className="flex w-full min-w-0 items-center gap-3">
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${status === "reviewed" ? "bg-ok-soft text-ok-ink" : status === "flagged" ? "bg-warning-soft text-warning-ink" : status === "trashed" ? "bg-danger-soft text-danger-ink" : "bg-surface text-ink-sub"}`}>{STATUS_LABEL[status]}</span>
-                {/* TODO(backend): 저장된 녹음 위치의 좌표를 주소로 변환한 서버 응답으로 교체한다. 현재는 위치 유무와 관계없는 표시용 예시이며 원본에 저장하지 않는다. */}
-                <span className="shrink-0 whitespace-nowrap text-[13px] font-bold text-ink">{DEMO_ADDRESS} <span className="text-[10px] font-normal text-ink-sub">(임시 주소)</span></span>
+                <span className="shrink-0 whitespace-nowrap text-[13px] font-bold text-ink tabular-nums">{locationText(record)}</span>
+                {record.cancelDecision === "review" && !record.trashedAt && <span className="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-bold text-warning-ink">취소 요청?</span>}
               </span>
               <span title={recordingTitle(record)} className="w-full truncate text-[13px] font-medium text-ink-sub">{recordingTitle(record)}</span>
               <span className="text-[18px] leading-[1.7] font-extrabold [overflow-wrap:anywhere]">{recordingSummary(record)}</span>
